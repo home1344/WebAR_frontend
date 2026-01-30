@@ -29,12 +29,21 @@
   <div id="loading-screen" class="loading-screen visible">
     <div class="loading-content">
       <img id="logo" src="/assets/logo.svg" alt="Logo" class="logo">
-      <div class="loading-spinner"></div>
-      <p class="loading-text">Initializing AR Experience...</p>
-      <div class="progress-bar">
-        <div class="progress-fill" id="progress-fill"></div>
+      
+      <!-- Start AR Button (shown initially) -->
+      <button id="start-ar-btn" class="start-ar-btn">
+        <span class="btn-text">Start AR</span>
+      </button>
+      
+      <!-- Loading State (hidden initially) -->
+      <div id="loading-state" class="loading-state hidden">
+        <div class="loading-spinner"></div>
+        <p class="loading-text" id="loading-text">Initializing AR Experience...</p>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <p class="progress-text" id="progress-text">0%</p>
       </div>
-      <p class="progress-text" id="progress-text">0%</p>
     </div>
   </div>
 

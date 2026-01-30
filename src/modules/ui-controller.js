@@ -12,7 +12,9 @@ export class UIController {
     this.instructions = document.getElementById('instructions');
     this.progressFill = document.getElementById('progress-fill');
     this.progressText = document.getElementById('progress-text');
-    this.loadingText = document.querySelector('.loading-text');
+    this.loadingText = document.getElementById('loading-text');
+    this.startArBtn = document.getElementById('start-ar-btn');
+    this.loadingState = document.getElementById('loading-state');
     
     this.instructionTimeout = null;
   }
@@ -33,6 +35,42 @@ export class UIController {
     setTimeout(() => {
       this.loadingScreen.classList.add('hidden');
     }, 300);
+  }
+
+  /**
+   * Hide Start AR button
+   */
+  hideStartButton() {
+    if (this.startArBtn) {
+      this.startArBtn.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Show Start AR button
+   */
+  showStartButton() {
+    if (this.startArBtn) {
+      this.startArBtn.classList.remove('hidden');
+    }
+  }
+
+  /**
+   * Show loading state
+   */
+  showLoadingState() {
+    if (this.loadingState) {
+      this.loadingState.classList.remove('hidden');
+    }
+  }
+
+  /**
+   * Hide loading state
+   */
+  hideLoadingState() {
+    if (this.loadingState) {
+      this.loadingState.classList.add('hidden');
+    }
   }
 
   /**
@@ -57,6 +95,15 @@ export class UIController {
     if (this.progressText) {
       this.progressText.textContent = `${Math.round(clampedPercent)}%`;
     }
+  }
+
+  /**
+   * Show error message
+   */
+  showError(message) {
+    this.updateLoadingText(message);
+    this.hideLoadingState();
+    this.showStartButton();
   }
 
   /**

@@ -28,7 +28,6 @@ class WebARApp {
       
       // Initialize UI controller first
       this.uiController = new UIController();
-      this.uiController.updateLoadingText('Checking WebXR support...');
       
       // Check WebXR support
       if (!await this.checkWebXRSupport()) {
@@ -37,19 +36,13 @@ class WebARApp {
       }
       
       // Initialize modules
-      this.uiController.updateLoadingText('Loading components...');
-      this.uiController.updateProgress(20);
-      
       this.modelLoader = new ModelLoader(CONFIG.models);
       this.gallery = new Gallery(CONFIG.models, this.onModelSelect.bind(this));
-      
-      this.uiController.updateLoadingText('Setting up AR session...');
-      this.uiController.updateProgress(40);
       
       // Wait for A-Frame to be ready
       await this.waitForAFrame();
       
-      // Initialize AR session
+      // Initialize AR session (but don't start it yet)
       this.arSession = new ARSession(
         this.onPlaceModel.bind(this),
         this.onSessionStarted.bind(this),
@@ -62,18 +55,29 @@ class WebARApp {
       // Setup UI event handlers
       this.setupEventHandlers();
       
-      this.uiController.updateLoadingText('Starting AR session...');
-      this.uiController.updateProgress(100);
-      
-      // Auto-start AR session
-      await this.startARSession();
+      // Setup Start AR button
+      this.setupStartButton();
       
       this.isInitialized = true;
-      console.log('WebAR App: Initialization complete');
+      console.log('WebAR App: Initialization complete - waiting for user to start AR');
       
     } catch (error) {
       console.error('WebAR App: Initialization failed', error);
-      this.uiController.updateLoadingText(`Error: ${error.message}`);
+      this.uiController.showError(`Error: ${error.message}`);
+    }
+  }
+
+  setupStartButton() {
+    const startBtn = document.getElementById('start-ar-btn');
+    if (startBtn) {
+      startBtn.addEventListener('click', async () => {
+        // Hide button and show loading state
+        this.uiController.hideStartButton();
+        this.uiController.showLoadingState();
+        
+        // Start AR session with user interaction
+        await this.startARSession();
+      });
     }
   }
 
@@ -135,22 +139,33 @@ class WebARApp {
   async startARSession() {
     try {
       if (!window.isSecureContext) {
-        this.uiController.updateLoadingText('Failed to start AR: WebXR requires HTTPS (or localhost). Open the HTTPS URL and accept the certificate.');
+        this.uiController.showError('WebXR requires HTTPS (or localhost). Open the HTTPS URL and accept the certificate.');
         return;
       }
 
-      this.uiController.updateLoadingText('Starting AR session...');
+      this.uiController.updateLoadingText('Checking WebXR support...');
+      this.uiController.updateProgress(20);
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      this.uiController.updateLoadingText('Initializing AR session...');
+      this.uiController.updateProgress(50);
+      
       await this.arSession.start();
+      
+      this.uiController.updateLoadingText('Starting AR...');
+      this.uiController.updateProgress(100);
+      
     } catch (error) {
       console.error('Failed to start AR session:', error);
       if (error?.name === 'NotSupportedError') {
         if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
-          this.uiController.updateLoadingText('Failed to start AR: WebXR AR requires HTTPS. Open the https:// URL (not http://) and accept the certificate warning, then try again.');
+          this.uiController.showError('WebXR AR requires HTTPS. Open the https:// URL (not http://) and accept the certificate warning, then try again.');
         } else {
-          this.uiController.updateLoadingText('Failed to start AR: This device/browser does not support the required AR session configuration (hit-test). Make sure Google Play Services for AR is installed/enabled, then retry.');
+          this.uiController.showError('This device/browser does not support the required AR session configuration (hit-test). Make sure Google Play Services for AR is installed/enabled, then retry.');
         }
       } else {
-        this.uiController.updateLoadingText(`Failed to start AR: ${error.message}`);
+        this.uiController.showError(`Failed to start AR: ${error.message}`);
       }
     }
   }
