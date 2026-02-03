@@ -73,7 +73,8 @@
   <a-scene
     id="ar-scene"
     class="hidden"
-    webxr="requiredFeatures: hit-test; 
+    webxr="referenceSpaceType: local;
+           requiredFeatures: hit-test;
            optionalFeatures: dom-overlay;
            overlayElement: #ui-overlay"
     vr-mode-ui="enabled: false"
@@ -91,7 +92,7 @@
       position="0 0 0">
       <a-camera 
         id="camera"
-        position="0 1.6 0"
+        position="0 0 0"
         look-controls="enabled: false"
         wasd-controls="enabled: false">
       </a-camera>

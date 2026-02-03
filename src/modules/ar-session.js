@@ -132,10 +132,18 @@ export class ARSession {
   async configureSession() {
     this.logger.info('AR_CONFIG', 'Configuring AR session...');
     
-    // Create reference space
+    // Create reference space - MUST match A-Frame's webxr referenceSpaceType (set to 'local' in index.html)
+    // This ensures hit-test poses are in the same coordinate system as A-Frame rendering
     this.referenceSpace = await this.session.requestReferenceSpace('local');
     this.viewerSpace = await this.session.requestReferenceSpace('viewer');
-    this.logger.info('AR_CONFIG', 'Reference spaces created', { local: true, viewer: true });
+    
+    // Log reference space configuration for debugging coordinate systems
+    this.logger.info('AR_CONFIG', 'Reference spaces created', { 
+      hitTestPoseSpace: 'local',
+      viewerSpace: 'viewer',
+      aframeConfiguredSpace: 'local',
+      note: 'All coordinate systems should now be aligned to local reference space'
+    });
     
     // Setup hit test source
     if (!this.session.requestHitTestSource) {
@@ -205,7 +213,9 @@ export class ARSession {
           }
         }
       } else {
-        // No hit detected
+        // No hit detected - clear stale position to prevent placing model at old location
+        this.lastHitPosition = null;
+        
         this.updateHitTestStatus(false);
         this.hideHitMarker();
         
@@ -290,7 +300,7 @@ export class ARSession {
           indicator.classList.add('detected');
         }
         if (statusText) {
-          statusText.textContent = 'Surface detected - Tap to place';
+          statusText.textContent = 'Surface detected';
         }
       } else {
         surfaceStatus.classList.remove('detected');

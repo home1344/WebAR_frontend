@@ -22,6 +22,7 @@ export const CONFIG = {
       url: '/models/house_2.glb',
       thumbnail: null,
       defaultScale: '1 1 1',
+      targetSizeMeters: 0.5,
       layers: []
     }
   ],
@@ -63,8 +64,8 @@ export const CONFIG = {
     // Scale settings
     scale: {
       enabled: true,
-      min: 0.05,
-      max: 2.0,
+      min: 0.001,
+      max: 100.0,
       speed: 0.01
     }
   },

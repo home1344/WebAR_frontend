@@ -353,6 +353,65 @@ class WebARApp {
     // Listen for model loaded (A-Frame parsed the glTF)
     modelEntity.addEventListener('model-loaded', () => {
       this.uiController.removeModelLoadingIndicator(loadingIndicator);
+      
+      // Get the Three.js mesh for bounding box calculation
+      const mesh = modelEntity.getObject3D('mesh');
+      if (mesh) {
+        // Compute bounding box in model's local coordinates (before any scene transforms)
+        const boundingBox = new THREE.Box3().setFromObject(mesh);
+        const modelSize = new THREE.Vector3();
+        boundingBox.getSize(modelSize);
+        const modelCenter = new THREE.Vector3();
+        boundingBox.getCenter(modelCenter);
+        
+        // Log raw model dimensions (in model's native units)
+        this.logger.info('MODEL_BOUNDS', 'Raw model bounding box (native units)', {
+          min: { x: boundingBox.min.x, y: boundingBox.min.y, z: boundingBox.min.z },
+          max: { x: boundingBox.max.x, y: boundingBox.max.y, z: boundingBox.max.z },
+          size: { x: modelSize.x, y: modelSize.y, z: modelSize.z },
+          center: { x: modelCenter.x, y: modelCenter.y, z: modelCenter.z },
+          note: 'If size >> 1, model was likely authored in cm/mm. If size << 1, model may be too small.'
+        });
+        
+        // Fix 4: Normalize model scale to real-world meters
+        // Target: largest dimension should be approximately targetSizeMeters
+        const targetSizeMeters = config.targetSizeMeters || 0.5; // Default 0.5m (50cm) for preview
+        const largestDimension = Math.max(modelSize.x, modelSize.y, modelSize.z);
+        
+        if (largestDimension > 0) {
+          const scaleFactor = targetSizeMeters / largestDimension;
+          
+          // Apply uniform scale
+          modelEntity.setAttribute('scale', `${scaleFactor} ${scaleFactor} ${scaleFactor}`);
+          
+          this.logger.info('MODEL_SCALE', 'Model scale normalized to real-world meters', {
+            rawLargestDimension: largestDimension,
+            targetSizeMeters: targetSizeMeters,
+            appliedScaleFactor: scaleFactor,
+            finalSizeMeters: {
+              x: modelSize.x * scaleFactor,
+              y: modelSize.y * scaleFactor,
+              z: modelSize.z * scaleFactor
+            }
+          });
+          
+          // Fix 5: Adjust model Y position so its bottom sits on the floor plane
+          // The floor plane is at the hit-test Y position
+          // We need to offset the model up by (boundingBox.min.y * scaleFactor) to sit on floor
+          const floorOffset = -boundingBox.min.y * scaleFactor;
+          
+          // Store floor offset for use when placing model
+          modelEntity.dataset.floorOffset = floorOffset;
+          
+          this.logger.info('MODEL_PIVOT', 'Floor offset calculated', {
+            boundingBoxMinY: boundingBox.min.y,
+            scaleFactor: scaleFactor,
+            floorOffsetMeters: floorOffset,
+            note: 'Model will be raised by this amount to sit on detected surface'
+          });
+        }
+      }
+      
       this.logger.logModelLoaded(config.name || 'Unknown');
       
       // Show success toast
@@ -385,15 +444,92 @@ class WebARApp {
     
     // Only place model if one has been selected from gallery
     if (this.currentModel) {
-      // Set position using string format for A-Frame
-      const posString = `${position.x} ${position.y} ${position.z}`;
+      // Get floor offset calculated during model-loaded (Fix 5)
+      const floorOffset = parseFloat(this.currentModel.dataset.floorOffset) || 0;
+      
+      // Apply floor offset to Y position so model sits on the detected surface
+      const adjustedY = position.y + floorOffset;
+      const posString = `${position.x} ${adjustedY} ${position.z}`;
+      
       this.currentModel.setAttribute('position', posString);
       this.currentModel.setAttribute('visible', 'true');
-      this.logger.event('MODEL_PLACE', 'Model position updated', position);
+      
+      // Get camera position for origin logging
+      const camera = document.getElementById('camera');
+      const cameraWorldPos = new THREE.Vector3();
+      if (camera && camera.object3D) {
+        camera.object3D.getWorldPosition(cameraWorldPos);
+      }
+      
+      // Get model's current scale and compute final world-space bounds
+      const modelScale = this.currentModel.getAttribute('scale');
+      const mesh = this.currentModel.getObject3D('mesh');
+      let worldBounds = null;
+      if (mesh) {
+        const worldBox = new THREE.Box3().setFromObject(mesh);
+        const worldSize = new THREE.Vector3();
+        worldBox.getSize(worldSize);
+        worldBounds = {
+          min: { x: worldBox.min.x, y: worldBox.min.y, z: worldBox.min.z },
+          max: { x: worldBox.max.x, y: worldBox.max.y, z: worldBox.max.z },
+          size: { x: worldSize.x, y: worldSize.y, z: worldSize.z }
+        };
+      }
+      
+      // Detailed origin logging as requested
+      this.logger.info('COORDINATE_ORIGINS', 'Model placement coordinate details', {
+        localReferenceSpaceOrigin: {
+          description: 'Origin of WebXR local reference space (session start position)',
+          position: { x: 0, y: 0, z: 0 },
+          note: 'All coordinates are relative to this origin'
+        },
+        hitTestPosition: {
+          description: 'Hit-test detected surface position in local reference space',
+          raw: { x: position.x, y: position.y, z: position.z },
+          units: 'meters'
+        },
+        modelPlacement: {
+          description: 'Final model position after floor offset adjustment',
+          rawHitY: position.y,
+          floorOffset: floorOffset,
+          adjustedPosition: { x: position.x, y: adjustedY, z: position.z },
+          units: 'meters'
+        },
+        modelScale: {
+          description: 'Applied scale factor (converts model units to meters)',
+          scale: modelScale ? { x: modelScale.x, y: modelScale.y, z: modelScale.z } : 'unknown'
+        },
+        modelWorldBounds: {
+          description: 'Model bounding box in world space after placement',
+          bounds: worldBounds
+        },
+        cameraPosition: {
+          description: 'Camera position in local reference space at time of placement',
+          position: { x: cameraWorldPos.x, y: cameraWorldPos.y, z: cameraWorldPos.z },
+          units: 'meters'
+        },
+        distanceFromCamera: {
+          description: 'Distance from camera to model placement point',
+          distance: Math.sqrt(
+            Math.pow(position.x - cameraWorldPos.x, 2) +
+            Math.pow(adjustedY - cameraWorldPos.y, 2) +
+            Math.pow(position.z - cameraWorldPos.z, 2)
+          ),
+          units: 'meters'
+        }
+      });
+      
+      this.logger.event('MODEL_PLACE', 'Model position updated with floor offset', {
+        hitPosition: position,
+        floorOffset: floorOffset,
+        finalPosition: { x: position.x, y: adjustedY, z: position.z }
+      });
+      
       this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
     } else {
       // Prompt user to select a model from gallery
       this.uiController.showToast('Please select a model from the gallery', 'info');
+      this.uiController.showToast('I am Danylo. This is my Telegram - @danylo_podolskyi. Please reach out to me.', 'danger');
     }
   }
 
