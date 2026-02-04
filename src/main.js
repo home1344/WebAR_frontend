@@ -454,30 +454,31 @@ class WebARApp {
       this.currentModel.setAttribute('position', posString);
       this.currentModel.setAttribute('visible', 'true');
       
-      // Get camera position for origin logging
-      const camera = document.getElementById('camera');
+      // Fix 6: Use Three.js XR camera (not A-Frame entity) for accurate position
       const cameraWorldPos = new THREE.Vector3();
-      if (camera && camera.object3D) {
-        camera.object3D.getWorldPosition(cameraWorldPos);
+      if (this.arSession.scene.camera) {
+        this.arSession.scene.camera.getWorldPosition(cameraWorldPos);
       }
       
-      // Get model's current scale and compute final world-space bounds
-      const modelScale = this.currentModel.getAttribute('scale');
-      const mesh = this.currentModel.getObject3D('mesh');
-      let worldBounds = null;
-      if (mesh) {
-        const worldBox = new THREE.Box3().setFromObject(mesh);
-        const worldSize = new THREE.Vector3();
-        worldBox.getSize(worldSize);
-        worldBounds = {
-          min: { x: worldBox.min.x, y: worldBox.min.y, z: worldBox.min.z },
-          max: { x: worldBox.max.x, y: worldBox.max.y, z: worldBox.max.z },
-          size: { x: worldSize.x, y: worldSize.y, z: worldSize.z }
-        };
-      }
-      
-      // Detailed origin logging as requested
-      this.logger.info('COORDINATE_ORIGINS', 'Model placement coordinate details', {
+      // Fix 5: Defer bounding box calculation to next frame after A-Frame applies attributes
+      requestAnimationFrame(() => {
+        // Get model's current scale and compute final world-space bounds
+        const modelScale = this.currentModel.getAttribute('scale');
+        const mesh = this.currentModel.getObject3D('mesh');
+        let worldBounds = null;
+        if (mesh) {
+          const worldBox = new THREE.Box3().setFromObject(mesh);
+          const worldSize = new THREE.Vector3();
+          worldBox.getSize(worldSize);
+          worldBounds = {
+            min: { x: worldBox.min.x, y: worldBox.min.y, z: worldBox.min.z },
+            max: { x: worldBox.max.x, y: worldBox.max.y, z: worldBox.max.z },
+            size: { x: worldSize.x, y: worldSize.y, z: worldSize.z }
+          };
+        }
+        
+        // Detailed origin logging as requested
+        this.logger.info('COORDINATE_ORIGINS', 'Model placement coordinate details', {
         localReferenceSpaceOrigin: {
           description: 'Origin of WebXR local reference space (session start position)',
           position: { x: 0, y: 0, z: 0 },
@@ -518,6 +519,7 @@ class WebARApp {
           units: 'meters'
         }
       });
+      });  // End of requestAnimationFrame
       
       this.logger.event('MODEL_PLACE', 'Model position updated with floor offset', {
         hitPosition: position,
@@ -529,7 +531,7 @@ class WebARApp {
     } else {
       // Prompt user to select a model from gallery
       this.uiController.showToast('Please select a model from the gallery', 'info');
-      this.uiController.showToast('I am Danylo. This is my Telegram - @danylo_podolskyi. Please reach out to me.', 'danger');
+      //this.uiController.showToast('I am Danylo. This is my Telegram - @danylo_podolskyi. Please reach out to me.', 'danger');
     }
   }
 

@@ -110,7 +110,11 @@ export class ARSession {
       
       // Start render loop
       this.scene.renderer.xr.enabled = true;
+      this.scene.renderer.xr.setReferenceSpaceType('local'); // Fix 1: Force renderer to use 'local' space
       this.scene.renderer.xr.setSession(this.session);
+      
+      // Fix 2: Use renderer's animation loop instead of manual requestAnimationFrame
+      this.scene.renderer.setAnimationLoop(this.onXRFrame.bind(this));
       
       // Setup event listeners
       this.session.addEventListener('select', this.onSelect);
@@ -171,16 +175,14 @@ export class ARSession {
       throw new Error('Failed to enable hit-test for AR session. Make sure Google Play Services for AR (ARCore) is installed/enabled, then retry.');
     }
     
-    // Start frame loop for hit testing
-    this.session.requestAnimationFrame(this.onXRFrame.bind(this));
-    this.logger.info('AR_CONFIG', 'XR frame loop started');
+    // Frame loop will be started by renderer.setAnimationLoop in start()
+    this.logger.info('AR_CONFIG', 'AR session configured successfully');
   }
 
   onXRFrame(time, frame) {
+    // Fix 2: No need to manually schedule next frame - renderer.setAnimationLoop handles this
+    if (!frame) return; // Safety check
     const session = frame.session;
-    
-    // Schedule next frame
-    session.requestAnimationFrame(this.onXRFrame.bind(this));
     
     // Perform hit test
     if (this.hitTestSource && frame) {
@@ -230,6 +232,9 @@ export class ARSession {
     
     // Update FPS counter if debug mode
     this.updateDebugInfo(time);
+    
+    // Fix 3: Explicitly render the scene within the XR frame
+    this.scene.renderer.render(this.scene.object3D, this.scene.camera);
   }
 
   updateHitMarker(pose) {
@@ -342,6 +347,11 @@ export class ARSession {
 
   onSessionEnd() {
     this.logger.info('AR_SESSION', 'AR session ended');
+    
+    // Fix 4: Stop the animation loop when session ends
+    if (this.scene && this.scene.renderer) {
+      this.scene.renderer.setAnimationLoop(null);
+    }
     
     // Clean up
     this.session = null;
