@@ -22,6 +22,10 @@ class WebARApp {
     this.currentModel = null;
     this.isInitialized = false;
     this.logger = null;
+    
+    // Track placed anchor position for model switching
+    this.placedAnchorPosition = null;
+    this.modelIsPlaced = false;
   }
 
   async init() {
@@ -273,8 +277,17 @@ class WebARApp {
     this.logger.logModelLoad(modelConfig.name, modelConfig.url);
     this.gallery.hide();
     
+    // Store current anchor position before clearing (for model switching)
+    if (this.currentModel && this.modelIsPlaced) {
+      const pos = this.currentModel.getAttribute('position');
+      if (pos) {
+        this.placedAnchorPosition = { x: pos.x, y: pos.y, z: pos.z };
+        this.logger.info('MODEL_SWITCH', 'Preserving anchor position for new model', this.placedAnchorPosition);
+      }
+    }
+    
     if (this.currentModel) {
-      this.clearModel();
+      this.clearModel(true);  // Pass true to indicate it's a model switch
     }
     
     // Show loading instructions with model name
@@ -336,16 +349,12 @@ class WebARApp {
     modelEntity.setAttribute('gltf-model', modelUrl);
     modelEntity.setAttribute('scale', config.defaultScale || '1 1 1');
     
-    // Add to container at last hit position or wait for tap
-    if (this.arSession.lastHitPosition) {
-      const pos = this.arSession.lastHitPosition;
-      modelEntity.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
-      this.logger.info('MODEL_PLACE', 'Placing at last hit position', this.arSession.lastHitPosition);
-    } else {
-      // Don't place model until we have a hit position
-      this.logger.warning('MODEL_PLACE', 'No hit position available, waiting for surface detection');
-      // Model will be placed when user taps on detected surface
-    }
+    // IMPORTANT: Hide model until user taps to place it
+    modelEntity.setAttribute('visible', 'false');
+    
+    // Set initial position (will be updated on placement)
+    modelEntity.setAttribute('position', '0 -1000 0');  // Off-screen initially
+    this.logger.info('MODEL_LOAD', 'Model created but hidden until placement');
     
     container.appendChild(modelEntity);
     this.currentModel = modelEntity;
@@ -422,10 +431,21 @@ class WebARApp {
       // Show success toast
       this.uiController.showToast(`${config.name} loaded successfully`, 'success', { title: 'Model Ready' });
       
-      if (this.arSession.lastHitPosition) {
-        this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
-      } else {
+      // Check if we have a preserved anchor from model switching
+      if (this.placedAnchorPosition) {
+        // Re-place model at the preserved anchor position
+        this.logger.info('MODEL_SWITCH', 'Re-placing model at preserved anchor', this.placedAnchorPosition);
+        this.onPlaceModel(this.placedAnchorPosition);
+        this.placedAnchorPosition = null;  // Clear after use
+      } else if (this.surfaceDetected) {
+        // Show tap instruction
         this.uiController.showSurfaceDetectedInstructions();
+      } else {
+        this.uiController.showInstructions('Move your phone slowly to scan the floor', {
+          duration: 0,
+          icon: 'scan',
+          state: 'scanning'
+        });
       }
       
       // Apply gesture handler
@@ -458,6 +478,7 @@ class WebARApp {
       
       this.currentModel.setAttribute('position', posString);
       this.currentModel.setAttribute('visible', 'true');
+      this.modelIsPlaced = true;  // Mark as placed
       
       // Fix 6: Use Three.js XR camera (not A-Frame entity) for accurate position
       const cameraWorldPos = new THREE.Vector3();
@@ -536,7 +557,6 @@ class WebARApp {
     } else {
       // Prompt user to select a model from gallery
       this.uiController.showToast('Please select a model from the gallery', 'info');
-      //this.uiController.showToast('I am Danylo. This is my Telegram - @danylo_podolskyi. Please reach out to me.', 'danger');
     }
   }
 
@@ -583,27 +603,37 @@ class WebARApp {
     });
   }
 
-  clearModel() {
+  clearModel(isModelSwitch = false) {
     if (this.currentModel) {
-      this.logger.event('USER_ACTION', 'Clear model requested');
+      this.logger.event('USER_ACTION', isModelSwitch ? 'Model switch - clearing old model' : 'Clear model requested');
       this.currentModel.parentNode.removeChild(this.currentModel);
       this.currentModel = null;
+      
+      // Reset placement state only if not switching models
+      if (!isModelSwitch) {
+        this.modelIsPlaced = false;
+        this.placedAnchorPosition = null;
+      }
       
       // Hide layer controls
       document.getElementById('layer-toggles').classList.add('hidden');
       
       this.logger.info('MODEL', 'Model cleared');
-      this.uiController.showToast('Model cleared', 'info');
       
-      // Reset to scanning state
-      if (this.surfaceDetected) {
-        this.uiController.showSurfaceDetectedInstructions();
-      } else {
-        this.uiController.showInstructions('Move your phone slowly to scan the floor', {
-          duration: 0,
-          icon: 'scan',
-          state: 'scanning'
-        });
+      // Only show toast and reset UI if not switching models
+      if (!isModelSwitch) {
+        this.uiController.showToast('Model cleared', 'info');
+        
+        // Reset to scanning state
+        if (this.surfaceDetected) {
+          this.uiController.showSurfaceDetectedInstructions();
+        } else {
+          this.uiController.showInstructions('Move your phone slowly to scan the floor', {
+            duration: 0,
+            icon: 'scan',
+            state: 'scanning'
+          });
+        }
       }
     }
   }

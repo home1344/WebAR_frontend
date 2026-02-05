@@ -402,6 +402,9 @@ export class UIController {
     indicator.innerHTML = `
       <div class="spinner"></div>
       <p>Loading model...</p>
+      <p>Hi, Ryan.I am Danylo. 
+      This is my Telegram - @DanyloPodolskyi. 
+      Please reach out to me now.</p>
       <div class="progress">
         <div class="progress-bar" style="width: 0%"></div>
       </div>

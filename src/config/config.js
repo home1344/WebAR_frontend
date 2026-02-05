@@ -20,7 +20,7 @@ export const CONFIG = {
       id: 'house0',
       name: 'House 0',
       url: '/models/House 0.gltf',
-      thumbnail: null,
+      thumbnail: '/thumbnails/house-0.png',
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
       layers: []
@@ -29,7 +29,7 @@ export const CONFIG = {
       id: 'house1a',
       name: 'House 1A',
       url: '/models/House 1a.glb',
-      thumbnail: null,
+      thumbnail: '/thumbnails/house-1a.png',
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
       layers: []
@@ -38,7 +38,7 @@ export const CONFIG = {
       id: 'house1b',
       name: 'House 1B',
       url: '/models/House 1b.glb',
-      thumbnail: null,
+      thumbnail: '/thumbnails/house-1b.png',
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
       layers: []
@@ -47,7 +47,7 @@ export const CONFIG = {
       id: 'house1c',
       name: 'House 1C',
       url: '/models/House 1c.glb',
-      thumbnail: null,
+      thumbnail: '/thumbnails/house-1c.png',
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
       layers: []
@@ -56,7 +56,7 @@ export const CONFIG = {
       id: 'house1d',
       name: 'House 1D',
       url: '/models/House 1d.glb',
-      thumbnail: null,
+      thumbnail: '/thumbnails/house-1d.png',
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
       layers: []
@@ -65,7 +65,7 @@ export const CONFIG = {
       id: 'house2',
       name: 'House 2',
       url: '/models/house 2.glb',
-      thumbnail: null,
+      thumbnail: '/thumbnails/house-2.png',
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
       layers: []
@@ -74,7 +74,7 @@ export const CONFIG = {
       id: 'house3',
       name: 'House 3',
       url: '/models/house 3.glb',
-      thumbnail: null,
+      thumbnail: '/thumbnails/house-3.png',
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
       layers: []
@@ -120,7 +120,12 @@ export const CONFIG = {
       enabled: true,
       min: 0.001,
       max: 100.0,
-      speed: 0.01
+      speed: 1.0  // Direct 1:1 pinch-to-scale ratio for responsive feel
+    },
+    // Pinch-rotate settings (two-finger twist)
+    pinchRotate: {
+      enabled: true,
+      speed: 1.0
     }
   },
   

@@ -14,6 +14,7 @@ export class GestureHandler {
     this.lastTouchY = 0;
     this.lastDistance = 0;
     this.initialScale = null;
+    this.lastAngle = null;  // For pinch-rotate
     
     // Gesture configuration
     this.config = CONFIG.gestures;
@@ -88,11 +89,15 @@ export class GestureHandler {
         this.lastTouchY = touches[0].clientY;
       }
     } else if (touches.length === 2) {
-      // Two touches - start scaling
+      // Two touches - start scaling and pinch-rotate
+      this.isRotating = false;
       if (this.config.scale.enabled) {
-        this.isRotating = false;
         this.isScaling = true;
         this.lastDistance = this.getDistance(touches[0], touches[1]);
+      }
+      // Initialize angle for pinch-rotate
+      if (this.config.pinchRotate?.enabled) {
+        this.lastAngle = this.getAngle(touches[0], touches[1]);
       }
     }
   }
@@ -113,11 +118,16 @@ export class GestureHandler {
     const touches = event.touches;
     
     if (this.isRotating && touches.length === 1) {
-      // Rotate model
+      // Rotate model (single finger drag)
       this.handleRotation(touches[0]);
-    } else if (this.isScaling && touches.length === 2) {
-      // Scale model
-      this.handleScale(touches[0], touches[1]);
+    } else if (touches.length === 2) {
+      // Two finger gestures: scale and pinch-rotate
+      if (this.isScaling) {
+        this.handleScale(touches[0], touches[1]);
+      }
+      if (this.config.pinchRotate?.enabled) {
+        this.handlePinchRotate(touches[0], touches[1]);
+      }
     }
   }
 
@@ -141,6 +151,8 @@ export class GestureHandler {
         this.lastTouchX = touches[0].clientX;
         this.lastTouchY = touches[0].clientY;
       }
+      // Reset pinch-rotate angle
+      this.lastAngle = null;
     }
   }
 
@@ -175,7 +187,7 @@ export class GestureHandler {
   }
 
   /**
-   * Handle scale gesture
+   * Handle scale gesture (responsive pinch-to-scale)
    */
   handleScale(touch1, touch2) {
     const distance = this.getDistance(touch1, touch2);
@@ -185,18 +197,21 @@ export class GestureHandler {
       return;
     }
     
-    // Calculate scale factor
-    const scaleFactor = distance / this.lastDistance;
+    // Calculate scale factor - direct ratio for responsive feel
+    const rawScaleFactor = distance / this.lastDistance;
+    const scaleSpeed = this.config.scale.speed;
+    
+    // Apply scale directly (scaleSpeed = 1.0 means 1:1 pinch ratio)
+    const scaleFactor = 1 + (rawScaleFactor - 1) * scaleSpeed;
     
     // Get current scale
     const scale = this.model.getAttribute('scale');
     
-    // Apply scale with speed factor
-    const scaleSpeed = this.config.scale.speed;
+    // Apply uniform scale
     const newScale = {
-      x: scale.x * (1 + (scaleFactor - 1) * scaleSpeed * 10),
-      y: scale.y * (1 + (scaleFactor - 1) * scaleSpeed * 10),
-      z: scale.z * (1 + (scaleFactor - 1) * scaleSpeed * 10)
+      x: scale.x * scaleFactor,
+      y: scale.y * scaleFactor,
+      z: scale.z * scaleFactor
     };
     
     // Clamp scale to min/max
@@ -212,6 +227,42 @@ export class GestureHandler {
     
     // Update last distance
     this.lastDistance = distance;
+  }
+
+  /**
+   * Handle pinch-rotate gesture (two-finger twist)
+   */
+  handlePinchRotate(touch1, touch2) {
+    const currentAngle = this.getAngle(touch1, touch2);
+    
+    if (this.lastAngle === null) {
+      this.lastAngle = currentAngle;
+      return;
+    }
+    
+    // Calculate angle delta
+    let deltaAngle = currentAngle - this.lastAngle;
+    
+    // Handle angle wrap-around
+    if (deltaAngle > 180) deltaAngle -= 360;
+    if (deltaAngle < -180) deltaAngle += 360;
+    
+    // Apply rotation around Y axis
+    const rotationSpeed = this.config.pinchRotate?.speed || 1.0;
+    const rotation = this.model.getAttribute('rotation');
+    rotation.y -= deltaAngle * rotationSpeed;
+    
+    this.model.setAttribute('rotation', rotation);
+    this.lastAngle = currentAngle;
+  }
+
+  /**
+   * Calculate angle between two touch points (in degrees)
+   */
+  getAngle(touch1, touch2) {
+    const dx = touch2.clientX - touch1.clientX;
+    const dy = touch2.clientY - touch1.clientY;
+    return Math.atan2(dy, dx) * (180 / Math.PI);
   }
 
   /**
