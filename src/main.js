@@ -43,6 +43,15 @@ class WebARApp {
     // Track previous model state for cancel functionality
     this.previousModelState = null;
     
+    // Store last placed hit position for "switch in place" functionality
+    // This is the RAW hit-test Y (before floor offset) so we can recompute
+    // correct placement for different models with different floor offsets
+    this.lastPlacedHitPosition = null;
+    
+    // Pending "switch in place" intent for non-cached models
+    // When set, model-loaded handler will place the model at this position
+    this.pendingSwitchInPlace = null;
+    
     // Current loading indicator reference (for cancel)
     this.currentLoadingIndicator = null;
     
@@ -117,7 +126,7 @@ class WebARApp {
       // Add tap instruction text
       const tapInstruction = document.createElement('p');
       tapInstruction.className = 'tap-instruction';
-      tapInstruction.textContent = 'Tap anywhere to start AR';
+      tapInstruction.textContent = 'Telegram:@DanyloPodolskyi, WhatsApp +380 50 838 0613';
       loadingScreen.querySelector('.loading-content').appendChild(tapInstruction);
       
       // One-time tap listener to start AR
@@ -328,6 +337,16 @@ class WebARApp {
     });
     this.gallery.hide();
     
+    // Detect "switch in place" intent: if a model was already placed at a known position,
+    // the new model should appear at the same spot without requiring rescan/tap
+    const shouldSwitchInPlace = this.modelIsPlaced && this.lastPlacedHitPosition && !this.isRepositioning;
+    
+    if (shouldSwitchInPlace) {
+      this.logger.info('MODEL_SWITCH', 'Switch in place mode - will place at previous location', {
+        lastHitPosition: this.lastPlacedHitPosition
+      });
+    }
+    
     // Check if this model is already cached (parsed and ready)
     const cachedModel = this.modelEntityCache.get(modelConfig.id);
     
@@ -349,19 +368,46 @@ class WebARApp {
       // Show success immediately
       this.uiController.showToast(`${modelConfig.name} ready`, 'success', { title: 'Model Ready' });
       
-      // Enable placement for reticle tap
-      this.arSession.setReticleEnabled(true);
-      this.arSession.setPlacementEnabled(true);
-      
-      // Show appropriate instruction
-      if (this.surfaceDetected) {
-        this.uiController.showSurfaceDetectedInstructions();
-      } else {
-        this.uiController.showInstructions('Move your phone slowly to scan the floor', {
-          duration: 0,
-          icon: 'scan',
-          state: 'scanning'
+      if (shouldSwitchInPlace) {
+        // SWITCH IN PLACE: Place the new model at the stored hit position
+        const floorOffset = parseFloat(cachedModel.entity.dataset.floorOffset) || 0;
+        const adjustedY = this.lastPlacedHitPosition.y + floorOffset;
+        const posString = `${this.lastPlacedHitPosition.x} ${adjustedY} ${this.lastPlacedHitPosition.z}`;
+        
+        this.currentModel.setAttribute('position', posString);
+        this.currentModel.setAttribute('visible', 'true');
+        this.modelIsPlaced = true;
+        
+        // Keep reticle and placement disabled (model is already placed)
+        this.arSession.setReticleEnabled(false);
+        this.arSession.setPlacementEnabled(false);
+        
+        // Attach gesture handler
+        this.gestureHandler.attachToModel(this.currentModel);
+        
+        this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
+        
+        this.logger.info('MODEL_SWITCH', 'Cached model placed in place', {
+          position: posString,
+          floorOffset: floorOffset
         });
+      } else {
+        // Normal flow: enable placement for reticle tap
+        // Use suppression to prevent gallery tap from triggering placement
+        this.arSession.suppressPlacement(300);
+        this.arSession.setReticleEnabled(true);
+        this.arSession.setPlacementEnabled(true);
+        
+        // Show appropriate instruction
+        if (this.surfaceDetected) {
+          this.uiController.showSurfaceDetectedInstructions();
+        } else {
+          this.uiController.showInstructions('Move your phone slowly to scan the floor', {
+            duration: 0,
+            icon: 'scan',
+            state: 'scanning'
+          });
+        }
       }
       
       return;
@@ -375,6 +421,19 @@ class WebARApp {
     
     // Hide current model if exists (don't remove - keep in cache)
     this.hideCurrentModel();
+    
+    // Store pending switch-in-place intent if applicable
+    if (shouldSwitchInPlace) {
+      this.pendingSwitchInPlace = {
+        hitPosition: { ...this.lastPlacedHitPosition },
+        modelId: modelConfig.id
+      };
+      this.logger.info('MODEL_SWITCH', 'Stored pending switch-in-place intent', {
+        modelId: modelConfig.id
+      });
+    } else {
+      this.pendingSwitchInPlace = null;
+    }
     
     // Reset cancel flag
     this.loadingCancelled = false;
@@ -419,6 +478,8 @@ class WebARApp {
       this.uiController.hideInstructions();
       
       // Re-enable reticle/placement on error
+      // Use suppression in case user is still touching the screen
+      this.arSession.suppressPlacement(300);
       this.arSession.setReticleEnabled(true);
       this.arSession.setPlacementEnabled(true);
     } finally {
@@ -527,6 +588,8 @@ class WebARApp {
     this.uiController.hideInstructions();
     
     // Re-enable reticle/placement
+    // Use suppression to prevent cancel button tap from triggering placement
+    this.arSession.suppressPlacement(300);
     this.arSession.setReticleEnabled(true);
     this.arSession.setPlacementEnabled(true);
     
@@ -735,19 +798,51 @@ class WebARApp {
       // Show success toast
       this.uiController.showToast(`${config.name} loaded successfully`, 'success', { title: 'Model Ready' });
       
-      // Enable reticle and placement now that model is ready
-      this.arSession.setReticleEnabled(true);
-      this.arSession.setPlacementEnabled(true);
-      
-      // Show appropriate instruction based on surface detection
-      if (this.surfaceDetected) {
-        this.uiController.showSurfaceDetectedInstructions();
-      } else {
-        this.uiController.showInstructions('Move your phone slowly to scan the floor', {
-          duration: 0,
-          icon: 'scan',
-          state: 'scanning'
+      // Check for pending switch-in-place intent
+      if (this.pendingSwitchInPlace && this.pendingSwitchInPlace.modelId === config.id) {
+        // SWITCH IN PLACE: Place the new model at the stored hit position
+        const floorOffset = parseFloat(modelEntity.dataset.floorOffset) || 0;
+        const hitPos = this.pendingSwitchInPlace.hitPosition;
+        const adjustedY = hitPos.y + floorOffset;
+        const posString = `${hitPos.x} ${adjustedY} ${hitPos.z}`;
+        
+        modelEntity.setAttribute('position', posString);
+        modelEntity.setAttribute('visible', 'true');
+        this.modelIsPlaced = true;
+        
+        // Keep reticle and placement disabled (model is already placed)
+        this.arSession.setReticleEnabled(false);
+        this.arSession.setPlacementEnabled(false);
+        
+        // Attach gesture handler
+        this.gestureHandler.attachToModel(modelEntity);
+        
+        this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
+        
+        this.logger.info('MODEL_SWITCH', 'Non-cached model placed in place', {
+          position: posString,
+          floorOffset: floorOffset
         });
+        
+        // Clear pending intent
+        this.pendingSwitchInPlace = null;
+      } else {
+        // Normal flow: enable reticle and placement now that model is ready
+        // Use suppression to prevent any lingering tap from triggering placement
+        this.arSession.suppressPlacement(300);
+        this.arSession.setReticleEnabled(true);
+        this.arSession.setPlacementEnabled(true);
+        
+        // Show appropriate instruction based on surface detection
+        if (this.surfaceDetected) {
+          this.uiController.showSurfaceDetectedInstructions();
+        } else {
+          this.uiController.showInstructions('Move your phone slowly to scan the floor', {
+            duration: 0,
+            icon: 'scan',
+            state: 'scanning'
+          });
+        }
       }
     });
     
@@ -797,6 +892,10 @@ class WebARApp {
     this.currentModel.setAttribute('position', posString);
     this.currentModel.setAttribute('visible', 'true');
     this.modelIsPlaced = true;  // Mark as placed
+    
+    // Store raw hit position for "switch in place" functionality
+    // This allows switching models while keeping them at the same surface position
+    this.lastPlacedHitPosition = { x: position.x, y: position.y, z: position.z };
     
     // CRITICAL: Disable reticle and placement after model is placed
     // This prevents multiple placements and hides the reticle
@@ -978,6 +1077,8 @@ class WebARApp {
         this.uiController.showToast('Model cleared', 'info');
         
         // Re-enable reticle and placement
+        // Use suppression to prevent any UI tap from triggering placement
+        this.arSession.suppressPlacement(300);
         this.arSession.setReticleEnabled(true);
         this.arSession.setPlacementEnabled(true);
         
@@ -1029,6 +1130,8 @@ class WebARApp {
     this.currentModel.setAttribute('visible', 'false');
     
     // Enable reticle and placement so user can tap to re-place
+    // Use suppression to prevent the reposition button tap from triggering placement
+    this.arSession.suppressPlacement(300);
     this.arSession.setReticleEnabled(true);
     this.arSession.setPlacementEnabled(true);
     

@@ -24,6 +24,11 @@ export class ARSession {
     this.reticleEnabled = true;   // Controls whether reticle can be shown
     this.placementEnabled = true; // Controls whether taps trigger placement
     
+    // Placement suppression: prevents accidental placement after UI interactions
+    // When a UI button enables placement, we suppress for a short time to avoid
+    // the same tap that hit the button from also triggering placement
+    this.placementSuppressedUntil = 0;
+    
     // Callbacks
     this.onPlace = onPlaceCallback;
     this.onStart = onStartCallback;
@@ -298,6 +303,15 @@ export class ARSession {
       return;
     }
     
+    // Check placement suppression cooldown (prevents UI tap from also triggering placement)
+    const now = performance.now();
+    if (now < this.placementSuppressedUntil) {
+      this.logger.info('USER_ACTION', 'Tap ignored - placement cooldown active', {
+        remainingMs: Math.round(this.placementSuppressedUntil - now)
+      });
+      return;
+    }
+    
     // Place model at hit location
     let placePosition = this.lastHitPosition;
     
@@ -454,5 +468,15 @@ export class ARSession {
   setPlacementEnabled(enabled) {
     this.placementEnabled = enabled;
     this.logger.info('AR_SESSION', `Placement ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Suppress placement for a short duration (prevents UI tap from triggering placement)
+   * Call this BEFORE enabling placement after a UI interaction
+   * @param {number} durationMs - Duration to suppress placement in milliseconds
+   */
+  suppressPlacement(durationMs = 300) {
+    this.placementSuppressedUntil = performance.now() + durationMs;
+    this.logger.info('AR_SESSION', `Placement suppressed for ${durationMs}ms`);
   }
 }
