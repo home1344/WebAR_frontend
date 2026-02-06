@@ -126,7 +126,7 @@ class WebARApp {
       // Add tap instruction text
       const tapInstruction = document.createElement('p');
       tapInstruction.className = 'tap-instruction';
-      tapInstruction.textContent = 'Telegram:@DanyloPodolskyi, WhatsApp +380 50 838 0613';
+      tapInstruction.textContent = 'Tap to start AR';
       loadingScreen.querySelector('.loading-content').appendChild(tapInstruction);
       
       // One-time tap listener to start AR
