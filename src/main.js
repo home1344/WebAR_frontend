@@ -126,7 +126,7 @@ class WebARApp {
       // Add tap instruction text
       const tapInstruction = document.createElement('p');
       tapInstruction.className = 'tap-instruction';
-      tapInstruction.textContent = 'Tap to start AR';
+      tapInstruction.textContent = 'TAP TO START';
       loadingScreen.querySelector('.loading-content').appendChild(tapInstruction);
       
       // One-time tap listener to start AR
@@ -135,7 +135,7 @@ class WebARApp {
         event.preventDefault();
         event.stopPropagation();
         
-        this.logger.event('USER_ACTION', 'Tap to start AR');
+        this.logger.event('USER_ACTION', 'TAP TO START');
         
         // Remove the listener immediately to prevent multiple triggers
         loadingScreen.removeEventListener('click', startOnTap);
@@ -477,18 +477,19 @@ class WebARApp {
       this.uiController.showToast('Failed to load model', 'error', { title: 'Error' });
       this.uiController.hideInstructions();
       
+      // Re-enable controls on fetch error
+      this.isModelLoading = false;
+      this.uiController.setControlsEnabled(true);
+      this.gallery.setEnabled(true);
+      
       // Re-enable reticle/placement on error
       // Use suppression in case user is still touching the screen
       this.arSession.suppressPlacement(300);
       this.arSession.setReticleEnabled(true);
       this.arSession.setPlacementEnabled(true);
-    } finally {
-      if (!this.loadingCancelled) {
-        this.isModelLoading = false;
-        this.uiController.setControlsEnabled(true);
-        this.gallery.setEnabled(true);
-      }
     }
+    // NOTE: For successful fetches, controls are re-enabled by
+    // model-loaded / model-error event handlers in loadAndCacheModel()
   }
 
   /**
@@ -795,6 +796,13 @@ class WebARApp {
       
       this.logger.logModelLoaded(config.name || 'Unknown');
       
+      // Re-enable controls now that model is fully parsed
+      if (!this.loadingCancelled) {
+        this.isModelLoading = false;
+        this.uiController.setControlsEnabled(true);
+        this.gallery.setEnabled(true);
+      }
+      
       // Show success toast
       this.uiController.showToast(`${config.name} loaded successfully`, 'success', { title: 'Model Ready' });
       
@@ -859,6 +867,13 @@ class WebARApp {
       
       this.uiController.showToast('Model file may be corrupted', 'error', { title: 'Loading Error' });
       this.uiController.hideInstructions();
+      
+      // Re-enable controls after parse error
+      if (!this.loadingCancelled) {
+        this.isModelLoading = false;
+        this.uiController.setControlsEnabled(true);
+        this.gallery.setEnabled(true);
+      }
     });
   }
 

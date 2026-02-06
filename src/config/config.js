@@ -19,26 +19,26 @@ export const CONFIG = {
     {
       id: 'house0',
       name: 'House 0',
-      url: '/models/House_0.gltf',
-      thumbnail: '/assets/logo.png', // Using logo as placeholder thumbnail
+      url: '/models/House0.gltf',
+      thumbnail: '/thumbnails/preview0.png',
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
       layers: []
     },
     {
-      id: 'housefull',
-      name: 'House Full',
-      url: '/models/House_full.gltf',
-      thumbnail: '/assets/logo.png', // Using logo as placeholder thumbnail
+      id: 'house1',
+      name: 'House 1',
+      url: '/models/House1.gltf',
+      thumbnail: '/thumbnails/preview1.png',
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
       layers: []
     },
     {
-      id: 'house1a',
-      name: 'House 1a Lights',
-      url: '/models/House 1a lights.gltf',
-      thumbnail: '/assets/logo.png', // Using logo as placeholder thumbnail
+      id: 'house2',
+      name: 'House 2',
+      url: '/models/House2.gltf',
+      thumbnail: '/thumbnails/preview2.png',
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
       layers: []

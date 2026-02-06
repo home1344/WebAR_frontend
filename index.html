@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>WebAR Floor Placement</title>
   <link rel="stylesheet" href="/src/styles/main.css">
@@ -72,10 +72,11 @@
     class="hidden"
     webxr="referenceSpaceType: local;
            requiredFeatures: hit-test;
-           optionalFeatures: dom-overlay;
+           optionalFeatures: dom-overlay, light-estimation;
            overlayElement: #ui-overlay"
     vr-mode-ui="enabled: false"
-    renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true"
+    renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true; toneMapping: ACESFilmic; exposure: 2"
+    reflection="directionalLight:a-light#main-light"
     loading-screen="enabled: false">
     
     <!-- Assets -->
@@ -145,19 +146,22 @@
 
     <!-- Enhanced Lighting for PBR Models -->
     <!-- Ambient provides base illumination -->
-    <a-light type="ambient" color="#ffffff" intensity="0.4"></a-light>
+    <a-light type="ambient" color="#ffffff" intensity="0.6"></a-light>
     
-    <!-- Main directional light (sun-like) -->
-    <a-light type="directional" position="1 2 1" color="#ffffff" intensity="2.0" cast-shadow="true"></a-light>
+    <!-- Main directional light (sun-like) - reflection component controls this in AR -->
+    <a-light id="main-light" type="directional" position="1 2 1" color="#ffffff" intensity="3.0" cast-shadow="true"></a-light>
     
     <!-- Fill light from opposite side to reduce harsh shadows -->
-    <a-light type="directional" position="-1 1.5 -1" color="#ffffff" intensity="1.0"></a-light>
+    <a-light type="directional" position="-1 1.5 -1" color="#ffffff" intensity="1.5"></a-light>
+    
+    <!-- Front key light to illuminate model face -->
+    <a-light type="directional" position="0 1 2" color="#fffaf0" intensity="1.0"></a-light>
+    
+    <!-- Rim light from behind for depth separation -->
+    <a-light type="directional" position="0 2 -2" color="#e0e8ff" intensity="0.8"></a-light>
     
     <!-- Hemisphere light for natural sky/ground gradient -->
-    <a-light type="hemisphere" color="#87CEEB" groundColor="#8B7355" intensity="0.6"></a-light>
-    
-    <!-- Environment for PBR reflections (simple sky gradient) -->
-    <a-entity id="environment-light" light="type: probe; intensity: 1.0"></a-entity>
+    <a-light type="hemisphere" color="#87CEEB" groundColor="#8B7355" intensity="1.0"></a-light>
   </a-scene>
 
   <!-- UI Overlay -->

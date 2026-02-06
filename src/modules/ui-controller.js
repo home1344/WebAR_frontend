@@ -400,20 +400,26 @@ export class UIController {
   createModelLoadingIndicator(onCancel = null) {
     const indicator = document.createElement('div');
     indicator.className = 'model-loading-indicator';
+    indicator.dataset.currentStage = '0';
     indicator.innerHTML = `
-      <div class="spinner"></div>
-      <p>Loading model...</p>
-      <div class="progress">
-        <div class="progress-bar" style="width: 0%"></div>
-      </div>
-      <span class="progress-percent">0%</span>
+      <div class="loading-bg loading-bg-active" data-stage="0" style="background-image: url('/rendering/rendering00.png')"></div>
+      <div class="loading-bg" data-stage="25" style="background-image: url('/rendering/rendering25.png')"></div>
+      <div class="loading-bg" data-stage="50" style="background-image: url('/rendering/rendering50.png')"></div>
+      <div class="loading-bg" data-stage="75" style="background-image: url('/rendering/rendering75.png')"></div>
       <button class="cancel-load-btn" type="button">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
         </svg>
-        Cancel
       </button>
+      <div class="loading-bottom-content">
+        <span class="progress-percent">0%</span>
+        <div class="progress">
+          <div class="progress-bar" style="width: 0%"></div>
+        </div>
+        <p>Loading model...</p>
+        <div class="spinner"></div>
+      </div>
     `;
     
     // Add cancel button handler if provided
@@ -440,6 +446,31 @@ export class UIController {
     if (progressPercent) {
       progressPercent.textContent = `${Math.round(percent)}%`;
     }
+    
+    // Determine which background stage to show based on progress
+    let newStage;
+    if (percent < 25) {
+      newStage = '0';
+    } else if (percent < 50) {
+      newStage = '25';
+    } else if (percent < 75) {
+      newStage = '50';
+    } else {
+      newStage = '75';
+    }
+    
+    // Only update if stage changed (avoid redundant DOM updates)
+    if (indicator.dataset.currentStage !== newStage) {
+      indicator.dataset.currentStage = newStage;
+      const bgLayers = indicator.querySelectorAll('.loading-bg');
+      bgLayers.forEach(layer => {
+        if (layer.dataset.stage === newStage) {
+          layer.classList.add('loading-bg-active');
+        } else {
+          layer.classList.remove('loading-bg-active');
+        }
+      });
+    }
   }
 
   /**
@@ -462,20 +493,24 @@ export class UIController {
     const galleryBtn = document.getElementById('gallery-btn');
     const reloadBtn = document.getElementById('reload-btn');
     const logBtn = document.getElementById('log-btn');
+    const surfaceStatus = this.surfaceStatus;
     const layerButtons = document.querySelectorAll('#layer-buttons button');
 
-    // Set disabled state for buttons
+    // Hide/show buttons during loading
     if (galleryBtn) {
       galleryBtn.disabled = !enabled;
-      galleryBtn.classList.toggle('disabled', !enabled);
+      galleryBtn.classList.toggle('loading-hidden', !enabled);
     }
     if (reloadBtn) {
       reloadBtn.disabled = !enabled;
-      reloadBtn.classList.toggle('disabled', !enabled);
+      reloadBtn.classList.toggle('loading-hidden', !enabled);
     }
     if (logBtn) {
       logBtn.disabled = !enabled;
-      logBtn.classList.toggle('disabled', !enabled);
+      logBtn.classList.toggle('loading-hidden', !enabled);
+    }
+    if (surfaceStatus) {
+      surfaceStatus.classList.toggle('loading-hidden', !enabled);
     }
     
     // Disable layer buttons
