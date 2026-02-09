@@ -372,15 +372,16 @@ export class ARSession {
     
     if (active) {
       surfaceStatus.classList.add('detected');
+      // Hide the badge when surface is detected (user requested no "Surface detected" text)
+      surfaceStatus.style.display = 'none';
       if (indicator) {
         indicator.classList.remove('searching');
         indicator.classList.add('detected');
       }
-      if (statusText) {
-        statusText.textContent = 'Surface detected';
-      }
     } else {
       surfaceStatus.classList.remove('detected');
+      // Show the badge again when searching
+      surfaceStatus.style.display = '';
       if (indicator) {
         indicator.classList.remove('detected');
         indicator.classList.add('searching');

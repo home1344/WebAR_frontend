@@ -126,7 +126,7 @@ class WebARApp {
       // Add tap instruction text
       const tapInstruction = document.createElement('p');
       tapInstruction.className = 'tap-instruction';
-      tapInstruction.textContent = '';
+      tapInstruction.textContent = 'TAP TO START';
       loadingScreen.querySelector('.loading-content').appendChild(tapInstruction);
       
       // One-time tap listener to start AR
@@ -319,7 +319,7 @@ class WebARApp {
    */
   onSurfaceLost() {
     if (!this.currentModel) {
-      this.uiController.showInstructions('Move your phone slowly to scan the floor', {
+      this.uiController.showInstructions('Move your device slowly from side to side while pointing at the floor', {
         duration: 0,
         icon: 'scan',
         state: 'scanning'
@@ -397,7 +397,7 @@ class WebARApp {
         // Attach gesture handler
         this.gestureHandler.attachToModel(this.currentModel);
         
-        this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
+        this.uiController.showSuccessInstructions('Use 2 fingers to scale and rotate or use 1 finger to rotate', 10000);
         
         // Show layer controls if model has layers
         if (cachedModel.layers && cachedModel.layers.length > 0) {
@@ -419,7 +419,7 @@ class WebARApp {
         if (this.surfaceDetected) {
           this.uiController.showSurfaceDetectedInstructions();
         } else {
-          this.uiController.showInstructions('Move your phone slowly to scan the floor', {
+          this.uiController.showInstructions('Move your device slowly from side to side while pointing at the floor', {
             duration: 0,
             icon: 'scan',
             state: 'scanning'
@@ -636,7 +636,13 @@ class WebARApp {
       this.modelIsPlaced = false;
       
       // Hide layer controls (will be re-shown for new model if it has layers)
-      document.getElementById('layer-toggles').classList.add('hidden');
+      const layerToggleBtn = document.getElementById('layer-toggle-btn');
+      if (layerToggleBtn) layerToggleBtn.classList.add('hidden');
+      const layerPopup = document.getElementById('layer-toggles');
+      if (layerPopup) {
+        layerPopup.classList.remove('visible');
+        layerPopup.classList.add('hidden');
+      }
       
       this.logger.info('MODEL_CACHE', 'Current model hidden (cached)', { 
         modelId: this.activeModelId 
@@ -851,7 +857,7 @@ class WebARApp {
         // Attach gesture handler
         this.gestureHandler.attachToModel(modelEntity);
         
-        this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
+        this.uiController.showSuccessInstructions('Use 2 fingers to scale and rotate or use 1 finger to rotate', 10000);
         
         // Show layer controls if model has layers
         if (modelLayers.length > 0) {
@@ -876,7 +882,7 @@ class WebARApp {
         if (this.surfaceDetected) {
           this.uiController.showSurfaceDetectedInstructions();
         } else {
-          this.uiController.showInstructions('Move your phone slowly to scan the floor', {
+          this.uiController.showInstructions('Move your device slowly from side to side while pointing at the floor', {
             duration: 0,
             icon: 'scan',
             state: 'scanning'
@@ -1036,7 +1042,7 @@ class WebARApp {
       finalPosition: { x: position.x, y: adjustedY, z: position.z }
     });
     
-    this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
+    this.uiController.showSuccessInstructions('Use 2 fingers to scale and rotate or use 1 finger to rotate', 10000);
     
     // Show layer controls if model has layers
     const placedCacheEntry = this.modelEntityCache.get(this.activeModelId);
@@ -1046,11 +1052,15 @@ class WebARApp {
   }
 
   setupLayerControls(layers) {
-    const layerToggles = document.getElementById('layer-toggles');
+    const layerToggleBtn = document.getElementById('layer-toggle-btn');
+    const layerPopupOverlay = document.getElementById('layer-toggles');
     const layerButtons = document.getElementById('layer-buttons');
+    const layerPopupClose = document.getElementById('layer-popup-close');
     
     if (!layers || layers.length === 0) {
-      layerToggles.classList.add('hidden');
+      if (layerToggleBtn) layerToggleBtn.classList.add('hidden');
+      layerPopupOverlay.classList.add('hidden');
+      layerPopupOverlay.classList.remove('visible');
       return;
     }
     
@@ -1089,7 +1099,43 @@ class WebARApp {
       layerButtons.appendChild(button);
     });
     
-    layerToggles.classList.remove('hidden');
+    // Show the Layer button in the controls panel
+    if (layerToggleBtn) {
+      layerToggleBtn.classList.remove('hidden');
+      
+      // Remove old listeners by cloning
+      const newBtn = layerToggleBtn.cloneNode(true);
+      layerToggleBtn.parentNode.replaceChild(newBtn, layerToggleBtn);
+      
+      // Open popup on Layer button click
+      newBtn.addEventListener('click', () => {
+        layerPopupOverlay.classList.remove('hidden');
+        // Trigger reflow then add visible for transition
+        requestAnimationFrame(() => {
+          layerPopupOverlay.classList.add('visible');
+        });
+      });
+    }
+    
+    // Close popup on X button
+    if (layerPopupClose) {
+      layerPopupClose.onclick = () => {
+        layerPopupOverlay.classList.remove('visible');
+        setTimeout(() => {
+          layerPopupOverlay.classList.add('hidden');
+        }, 250);
+      };
+    }
+    
+    // Close popup on overlay background click
+    layerPopupOverlay.onclick = (e) => {
+      if (e.target === layerPopupOverlay) {
+        layerPopupOverlay.classList.remove('visible');
+        setTimeout(() => {
+          layerPopupOverlay.classList.add('hidden');
+        }, 250);
+      }
+    };
   }
 
   toggleLayer(nodeName, visible) {
@@ -1182,7 +1228,13 @@ class WebARApp {
       this.modelIsPlaced = false;
       
       // Hide layer controls
-      document.getElementById('layer-toggles').classList.add('hidden');
+      const clrLayerBtn = document.getElementById('layer-toggle-btn');
+      if (clrLayerBtn) clrLayerBtn.classList.add('hidden');
+      const clrLayerPopup = document.getElementById('layer-toggles');
+      if (clrLayerPopup) {
+        clrLayerPopup.classList.remove('visible');
+        clrLayerPopup.classList.add('hidden');
+      }
       
       this.logger.info('MODEL', removeFromCache ? 'Model removed' : 'Model hidden (cached)');
       
@@ -1200,7 +1252,7 @@ class WebARApp {
         if (this.surfaceDetected) {
           this.uiController.showSurfaceDetectedInstructions();
         } else {
-          this.uiController.showInstructions('Move your phone slowly to scan the floor', {
+          this.uiController.showInstructions('Move your device slowly from side to side while pointing at the floor', {
             duration: 0,
             icon: 'scan',
             state: 'scanning'
@@ -1244,7 +1296,13 @@ class WebARApp {
     this.currentModel.setAttribute('visible', 'false');
     
     // Hide layer controls during reposition
-    document.getElementById('layer-toggles').classList.add('hidden');
+    const repoLayerBtn = document.getElementById('layer-toggle-btn');
+    if (repoLayerBtn) repoLayerBtn.classList.add('hidden');
+    const repoLayerPopup = document.getElementById('layer-toggles');
+    if (repoLayerPopup) {
+      repoLayerPopup.classList.remove('visible');
+      repoLayerPopup.classList.add('hidden');
+    }
     
     // Enable reticle and placement so user can tap to re-place
     // Use suppression to prevent the reposition button tap from triggering placement
@@ -1256,7 +1314,7 @@ class WebARApp {
     if (this.surfaceDetected) {
       this.uiController.showSurfaceDetectedInstructions();
     } else {
-      this.uiController.showInstructions('Move your phone slowly to scan the floor', {
+      this.uiController.showInstructions('Move your device slowly from side to side while pointing at the floor', {
         duration: 0,
         icon: 'scan',
         state: 'scanning'

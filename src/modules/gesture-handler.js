@@ -289,6 +289,8 @@ export class GestureHandler {
         element.classList.contains('ui-btn') ||
         element.classList.contains('gallery-modal') ||
         element.classList.contains('controls-panel') ||
+        element.classList.contains('layer-popup-overlay') ||
+        element.classList.contains('layer-popup') ||
         element.classList.contains('layer-btn') ||
         element.classList.contains('ar-logo') ||
         element.classList.contains('close-app-btn') ||

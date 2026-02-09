@@ -133,9 +133,9 @@ export class UIController {
     this.arScene.classList.remove('hidden');
     this.uiOverlay.classList.remove('hidden');
     
-    // Show initial instructions (persistent until surface detected)
-    this.showInstructions('Move your phone slowly to scan the floor', {
-      duration: 0, // Persistent
+    // Show initial instructions (persistent until reticle appears)
+    this.showInstructions('Move your device slowly from side to side while pointing at the floor', {
+      duration: 0, // Persistent until surface detected
       icon: 'scan',
       state: 'scanning'
     });
@@ -145,11 +145,10 @@ export class UIController {
    * Update instructions for surface detected state
    */
   showSurfaceDetectedInstructions() {
-    this.showInstructions('Tap the reticle to place your model', {
-      duration: 0, // Persistent until action
-      icon: 'tap',
-      state: 'surface_detected'
-    });
+    // Hide scanning instructions when surface is detected (reticle visible)
+    this.hideInstructions();
+    // No text shown for surface detected state per user request
+    this.currentInstructionState = 'surface_detected';
   }
 
   /**
@@ -166,7 +165,7 @@ export class UIController {
   /**
    * Show success instructions
    */
-  showSuccessInstructions(message, duration = 3000) {
+  showSuccessInstructions(message, duration = 10000) {
     this.showInstructions(message, {
       duration,
       icon: 'success',
@@ -561,10 +560,15 @@ export class UIController {
       surfaceStatus.classList.toggle('loading-hidden', !enabled);
     }
     
-    // Hide layer toggles container during loading
-    const layerToggles = document.getElementById('layer-toggles');
-    if (layerToggles && !enabled) {
-      layerToggles.classList.add('hidden');
+    // Hide Layer button and close popup during loading
+    const layerToggleBtn = document.getElementById('layer-toggle-btn');
+    if (layerToggleBtn && !enabled) {
+      layerToggleBtn.classList.add('hidden');
+    }
+    const layerPopup = document.getElementById('layer-toggles');
+    if (layerPopup && !enabled) {
+      layerPopup.classList.remove('visible');
+      layerPopup.classList.add('hidden');
     }
     
     // Disable layer buttons

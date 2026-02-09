@@ -131,7 +131,7 @@
   <!-- UI Overlay -->
   <div id="ui-overlay" class="ui-overlay hidden">
     <!-- Persistent Logo (top-right) -->
-    <img id="ar-logo" src="/assets/logo.png" alt="Logo" class="ar-logo">
+    <img id="ar-logo" src="/assets/logoNotext.png" alt="Logo" class="ar-logo">
     
     <!-- Close App Button (top-right) -->
     <button id="close-app-btn" class="close-app-btn" type="button">
@@ -179,12 +179,25 @@
 
     <!-- Controls Panel -->
     <div id="controls-panel" class="controls-panel">
+      <button id="layer-toggle-btn" class="ui-btn layer-toggle-btn hidden">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+        Layer
+      </button>
       <button id="reload-btn" class="ui-btn">Reposition</button>
-      
-      <!-- Layer toggles will be added dynamically -->
-      <div id="layer-toggles" class="layer-toggles hidden">
-        <h3>Layers</h3>
-        <div id="layer-buttons"></div>
+    </div>
+
+    <!-- Layer Popup Menu (centered overlay) -->
+    <div id="layer-toggles" class="layer-popup-overlay hidden">
+      <div class="layer-popup">
+        <div class="layer-popup-header">
+          <h3>Layers</h3>
+          <button id="layer-popup-close" class="layer-popup-close">&times;</button>
+        </div>
+        <div id="layer-buttons" class="layer-popup-buttons"></div>
       </div>
     </div>
 
