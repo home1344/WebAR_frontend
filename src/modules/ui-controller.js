@@ -134,7 +134,7 @@ export class UIController {
     this.uiOverlay.classList.remove('hidden');
     
     // Show initial instructions (persistent until reticle appears)
-    this.showInstructions('Move your device slowly from side to side while pointing at the floor', {
+    this.showInstructions('Point your device at the floor and move it around slowly', {
       duration: 0, // Persistent until surface detected
       icon: 'scan',
       state: 'scanning'
@@ -145,10 +145,12 @@ export class UIController {
    * Update instructions for surface detected state
    */
   showSurfaceDetectedInstructions() {
-    // Hide scanning instructions when surface is detected (reticle visible)
-    this.hideInstructions();
-    // No text shown for surface detected state per user request
-    this.currentInstructionState = 'surface_detected';
+    // Show "Tap to place your property" when surface is detected (reticle visible)
+    this.showInstructions('Tap to place your property', {
+      duration: 0, // Persistent until model is placed
+      icon: 'tap',
+      state: 'surface_detected'
+    });
   }
 
   /**

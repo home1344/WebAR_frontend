@@ -319,7 +319,7 @@ class WebARApp {
    */
   onSurfaceLost() {
     if (!this.modelIsPlaced) {
-      this.uiController.showInstructions('Move your device slowly from side to side while pointing at the floor', {
+      this.uiController.showInstructions('vice slowly from side to side while pointing at the floor', {
         duration: 0,
         icon: 'scan',
         state: 'scanning'
