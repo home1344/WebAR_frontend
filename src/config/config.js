@@ -82,7 +82,7 @@ export const CONFIG = {
     // Scale settings
     scale: {
       enabled: true,
-      minFactor: 0.2,   // Can shrink to 20% of normalized base size
+      minFactor: 0.5,   // Can shrink to 20% of normalized base size
       maxFactor: 10.0,    // Can grow to 5x normalized base size
       speed: 1.0  // Direct 1:1 pinch-to-scale ratio for responsive feel
     },

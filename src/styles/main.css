@@ -87,10 +87,14 @@ a-scene.hidden {
 /* Tap Instruction (replaces Start AR button) */
 .tap-instruction {
   color: rgba(255, 255, 255, 0.9);
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: 500;
-  margin-top: 1.5rem;
-  letter-spacing: 0.5px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  position: absolute;
+  bottom: 18%;
+  left: 50%;
+  transform: translateX(-50%);
   animation: fadeInOut 2s ease-in-out infinite;
 }
 
@@ -633,7 +637,7 @@ a-scene.hidden {
   display: flex;
   flex-direction: column;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(6, 182, 212, 0.3);
+  border: 2px solid rgba(6, 182, 212, 0.5);
   animation: slideUp 0.25s ease;
   overflow: hidden;
 }
@@ -686,7 +690,7 @@ a-scene.hidden {
 .layer-btn {
   background: rgba(6, 182, 212, 0.1);
   color: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(6, 182, 212, 0.4);
+  border: 2px solid rgba(6, 182, 212, 0.5);
   padding: 0.5rem 1rem;
   border-radius: 20px;
   font-size: 0.85rem;
@@ -957,9 +961,10 @@ a-scene.hidden {
   padding: 1rem 1.5rem;
   border-radius: 12px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   opacity: 0;
   visibility: hidden;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -978,6 +983,7 @@ a-scene.hidden {
   font-weight: 500;
   color: #ffffff;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  text-align: center;
 }
 
 .instruction-icon {
@@ -1062,12 +1068,22 @@ a-scene.hidden {
 }
 
 .toast-success {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.95) 0%, rgba(22, 163, 74, 0.95) 100%);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(15, 23, 35, 0.92);
+  border: 1px solid rgba(34, 197, 94, 0.5);
+  border-left: 3px solid #22c55e;
 }
 
 .toast-success .toast-icon {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+}
+
+.toast-success .toast-title {
+  color: #22c55e;
+}
+
+.toast-success .toast-message {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .toast-error {

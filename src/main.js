@@ -309,7 +309,7 @@ class WebARApp {
    * Called when surface is first detected
    */
   onSurfaceDetected() {
-    if (!this.currentModel) {
+    if (!this.modelIsPlaced) {
       this.uiController.showSurfaceDetectedInstructions();
     }
   }
@@ -318,7 +318,7 @@ class WebARApp {
    * Called when surface is lost
    */
   onSurfaceLost() {
-    if (!this.currentModel) {
+    if (!this.modelIsPlaced) {
       this.uiController.showInstructions('Move your device slowly from side to side while pointing at the floor', {
         duration: 0,
         icon: 'scan',
