@@ -137,6 +137,13 @@ class WebARApp {
         
         this.logger.event('USER_ACTION', 'TAP TO START');
         
+        // Hide the tap instruction text immediately
+        const tapInstruction = loadingScreen.querySelector('.tap-instruction');
+        if (tapInstruction) {
+          tapInstruction.style.opacity = '0';
+          tapInstruction.style.visibility = 'hidden';
+        }
+        
         // Remove the listener immediately to prevent multiple triggers
         loadingScreen.removeEventListener('click', startOnTap);
         loadingScreen.removeEventListener('touchend', startOnTap);
@@ -418,7 +425,7 @@ class WebARApp {
         if (this.surfaceDetected) {
           this.uiController.showSurfaceDetectedInstructions();
         } else {
-          this.uiController.showInstructions('Move your device slowly from side to side while pointing at the floor', {
+          this.uiController.showInstructions('Point your device at the floor and move it around slowly', {
             duration: 0,
             icon: 'scan',
             state: 'scanning'
@@ -880,7 +887,7 @@ class WebARApp {
         if (this.surfaceDetected) {
           this.uiController.showSurfaceDetectedInstructions();
         } else {
-          this.uiController.showInstructions('Move your device slowly from side to side while pointing at the floor', {
+          this.uiController.showInstructions('Point your device at the floor and move it around slowly', {
             duration: 0,
             icon: 'scan',
             state: 'scanning'
@@ -1252,7 +1259,7 @@ class WebARApp {
         if (this.surfaceDetected) {
           this.uiController.showSurfaceDetectedInstructions();
         } else {
-          this.uiController.showInstructions('Move your device slowly from side to side while pointing at the floor', {
+          this.uiController.showInstructions('Point your device at the floor and move it around slowly', {
             duration: 0,
             icon: 'scan',
             state: 'scanning'
