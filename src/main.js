@@ -378,7 +378,6 @@ class WebARApp {
       this.activateCachedModel(modelConfig.id, cachedModel);
       
       // Show success immediately
-      this.uiController.showToast(`${modelConfig.name} ready`, 'success', { title: 'Model Ready' });
       
       if (shouldSwitchInPlace) {
         // SWITCH IN PLACE: Place the new model at the stored hit position
@@ -835,8 +834,7 @@ class WebARApp {
         this.gallery.setEnabled(true);
       }
       
-      // Show success toast
-      this.uiController.showToast(`${config.name} loaded successfully`, 'success', { title: 'Model Ready' });
+      // Model loaded successfully
       
       // Check for pending switch-in-place intent
       if (this.pendingSwitchInPlace && this.pendingSwitchInPlace.modelId === config.id) {
@@ -1318,8 +1316,7 @@ class WebARApp {
       state: 'repositioning'
     });
     
-    this.uiController.showToast('Tap the reticle to reposition', 'info');
-    this.logger.info('MODEL', 'Model hidden - awaiting reposition tap');
+        this.logger.info('MODEL', 'Model hidden - awaiting reposition tap');
   }
 
   /**
