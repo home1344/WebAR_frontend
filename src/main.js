@@ -8,7 +8,8 @@ import { ModelLoader } from './modules/model-loader.js';
 import { UIController } from './modules/ui-controller.js';
 import { GestureHandler } from './modules/gesture-handler.js';
 import { Gallery } from './modules/gallery.js';
-import { CONFIG, loadConfig, getConfig } from './config/config.js';
+import { loadConfig, getConfig, refreshConfig } from './config/config.js';
+import { AssetManager } from './modules/asset-manager.js';
 import { getLogger } from './modules/logger.js';
 import './components/ar-components.js';
 
@@ -57,6 +58,15 @@ class WebARApp {
     
     // Flag to track if loading was cancelled
     this.loadingCancelled = false;
+
+    this.reticleVisible = false;
+
+    // Asset manager for pre-cached image blob URLs
+    this.assetManager = null;
+
+    // Pending first placement: saves tap position when no model is loaded yet
+    // so the first model auto-places after loading
+    this.pendingFirstPlacement = null;
   }
 
   async init() {
@@ -72,8 +82,12 @@ class WebARApp {
       const config = await loadConfig();
       this.logger.info('APP_INIT', 'Config loaded', { 
         modelCount: config.models.length,
-        source: config === CONFIG ? 'fallback' : 'api_or_cached'
+        source: config.models?.length > 0 ? 'api' : 'fallback'
       });
+      
+      // Pre-download all images (thumbnails + rendering images) from backend
+      this.assetManager = new AssetManager();
+      await this.assetManager.preloadAllImages(config.models);
       
       // Check WebXR support
       const webxrSupported = await this.checkWebXRSupport();
@@ -86,7 +100,7 @@ class WebARApp {
       
       // Initialize modules using dynamically loaded config
       this.modelLoader = new ModelLoader(config.models);
-      this.gallery = new Gallery(config.models, this.onModelSelect.bind(this));
+      this.gallery = new Gallery(config.models, this.onModelSelect.bind(this), this.assetManager);
       
       // Wait for A-Frame to be ready
       await this.waitForAFrame();
@@ -235,6 +249,11 @@ class WebARApp {
       }
       this.reloadModel();
     });
+    
+    // Refresh button - re-fetch config and sync images/models from backend
+    document.getElementById('refresh-btn')?.addEventListener('click', () => {
+      this.refreshAppConfig();
+    });
   }
 
   async startARSession() {
@@ -288,35 +307,50 @@ class WebARApp {
     this.surfaceDetected = false;
     this.setupSurfaceDetectionListener();
     
-    // Auto-load first model from the gallery
-    this.autoLoadFirstModel();
+    // No auto-load: first model loads when user taps detected reticle
   }
 
   /**
    * Setup listener for surface detection state changes
    */
   setupSurfaceDetectionListener() {
-    // Monitor surface status badge for state changes
-    const surfaceStatus = document.getElementById('surface-status');
-    if (surfaceStatus) {
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (mutation.attributeName === 'class') {
-            const isDetected = surfaceStatus.classList.contains('detected');
-            // Always update surface detection state and UI instructions
-            if (isDetected !== this.surfaceDetected) {
-              this.surfaceDetected = isDetected;
-              if (isDetected) {
-                this.onSurfaceDetected();
-              } else {
-                this.onSurfaceLost();
-              }
-            }
-          }
-        });
-      });
-      observer.observe(surfaceStatus, { attributes: true });
-    }
+    window.addEventListener('ar-reticle-visibility', (e) => {
+      const visible = !!e?.detail?.visible;
+      this.reticleVisible = visible;
+
+      if (this.isModelLoading) return;
+      if (this.modelIsPlaced) return;
+
+      if (!visible) {
+        this.onSurfaceLost();
+        return;
+      }
+
+      if (this.surfaceDetected) {
+        this.onSurfaceDetected();
+      } else {
+        this.uiController.showSurfaceDetectingInstructions();
+      }
+    });
+
+    window.addEventListener('ar-surface-state', (e) => {
+      const state = e?.detail?.state;
+      if (state !== 'detecting' && state !== 'detected') return;
+
+      const isDetected = (state === 'detected');
+      if (isDetected === this.surfaceDetected) return;
+      this.surfaceDetected = isDetected;
+
+      if (this.isModelLoading) return;
+      if (this.modelIsPlaced) return;
+      if (!this.reticleVisible) return;
+
+      if (isDetected) {
+        this.onSurfaceDetected();
+      } else {
+        this.uiController.showSurfaceDetectingInstructions();
+      }
+    });
   }
 
   /**
@@ -418,6 +452,35 @@ class WebARApp {
         }
         
         this.logger.info('MODEL_SWITCH', 'Cached model placed in place', {
+          position: posString,
+          floorOffset: floorOffset
+        });
+      } else if (this.pendingFirstPlacement) {
+        // AUTO-PLACE: first model loaded from cache after user tapped reticle
+        const floorOffset = parseFloat(cachedModel.entity.dataset.floorOffset) || 0;
+        const hitPos = this.pendingFirstPlacement;
+        const adjustedY = hitPos.y + floorOffset;
+        const posString = `${hitPos.x} ${adjustedY} ${hitPos.z}`;
+        
+        this.currentModel.setAttribute('position', posString);
+        this.currentModel.setAttribute('visible', 'true');
+        this.modelIsPlaced = true;
+        
+        this.arSession.setReticleEnabled(false);
+        this.arSession.setPlacementEnabled(false);
+        
+        this.gestureHandler.attachToModel(this.currentModel);
+        
+        this.uiController.showSuccessInstructions('Use 2 fingers to scale and rotate or use 1 finger to rotate', 10000);
+        
+        if (cachedModel.layers && cachedModel.layers.length > 0) {
+          this.setupLayerControls(cachedModel.layers);
+        }
+        
+        this.lastPlacedHitPosition = { ...this.pendingFirstPlacement };
+        this.pendingFirstPlacement = null;
+        
+        this.logger.info('MODEL_PLACE', 'Cached model auto-placed at first tap position', {
           position: posString,
           floorOffset: floorOffset
         });
@@ -632,6 +695,7 @@ class WebARApp {
     
     // Clear previous state
     this.previousModelState = null;
+    this.pendingFirstPlacement = null;
   }
 
   /**
@@ -695,10 +759,13 @@ class WebARApp {
     const container = document.getElementById('model-container');
     const startTime = Date.now();
     
-    // Show loading indicator with cancel button and per-model rendering images
+    // Show loading indicator with cancel button and pre-cached rendering images
+    const resolvedRenderingImages = (config.renderingImages && this.assetManager)
+      ? this.assetManager.resolveBlobUrls(config.renderingImages)
+      : null;
     const loadingIndicator = this.uiController.createModelLoadingIndicator(
       () => this.cancelModelLoading(),
-      config.renderingImages || null
+      resolvedRenderingImages
     );
     this.currentLoadingIndicator = loadingIndicator;
     
@@ -884,6 +951,35 @@ class WebARApp {
         
         // Clear pending intent
         this.pendingSwitchInPlace = null;
+      } else if (this.pendingFirstPlacement) {
+        // AUTO-PLACE: first model loaded after user tapped reticle
+        const floorOffset = parseFloat(modelEntity.dataset.floorOffset) || 0;
+        const hitPos = this.pendingFirstPlacement;
+        const adjustedY = hitPos.y + floorOffset;
+        const posString = `${hitPos.x} ${adjustedY} ${hitPos.z}`;
+        
+        modelEntity.setAttribute('position', posString);
+        modelEntity.setAttribute('visible', 'true');
+        this.modelIsPlaced = true;
+        
+        this.arSession.setReticleEnabled(false);
+        this.arSession.setPlacementEnabled(false);
+        
+        this.gestureHandler.attachToModel(modelEntity);
+        
+        this.uiController.showSuccessInstructions('Use 2 fingers to scale and rotate or use 1 finger to rotate', 10000);
+        
+        if (modelLayers.length > 0) {
+          this.setupLayerControls(modelLayers);
+        }
+        
+        this.lastPlacedHitPosition = { ...this.pendingFirstPlacement };
+        this.pendingFirstPlacement = null;
+        
+        this.logger.info('MODEL_PLACE', 'First model auto-placed at tap position', {
+          position: posString,
+          floorOffset: floorOffset
+        });
       } else {
         // Normal flow: enable reticle and placement now that model is ready
         // Use suppression to prevent any lingering tap from triggering placement
@@ -933,9 +1029,20 @@ class WebARApp {
     // Placement is now controlled by ARSession.placementEnabled
     // This function is only called when placement is allowed
     
-    // Check if model exists
+    // If no model is loaded yet, auto-load first model and save position for placement
     if (!this.currentModel) {
-      this.uiController.showToast('Please select a model from the gallery', 'info');
+      const currentConfig = getConfig();
+      if (currentConfig.models && currentConfig.models.length > 0) {
+        const firstModel = currentConfig.models[0];
+        this.logger.info('MODEL', 'First reticle tap - loading first model from backend', {
+          modelId: firstModel.id,
+          modelName: firstModel.name
+        });
+        this.pendingFirstPlacement = { x: position.x, y: position.y, z: position.z };
+        this.onModelSelect(firstModel);
+      } else {
+        this.uiController.showToast('No models available. Tap refresh to sync with backend.', 'warning');
+      }
       return;
     }
     
@@ -1337,7 +1444,116 @@ class WebARApp {
   }
 
   /**
-   * Auto-load the first model from the gallery
+   * Refresh app config from backend: re-download config, sync images,
+   * clean stale model cache entries, and update gallery.
+   */
+  async refreshAppConfig() {
+    if (this.isModelLoading) {
+      this.logger.info('USER_ACTION', 'Refresh ignored - model loading');
+      return;
+    }
+    
+    const refreshBtn = document.getElementById('refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.classList.add('refreshing');
+      refreshBtn.disabled = true;
+    }
+    
+    this.logger.event('USER_ACTION', 'Refresh config from backend');
+    
+    try {
+      // 1. Re-fetch config from backend (bypasses cache)
+      const { config: newConfig, previousConfig } = await refreshConfig();
+      const oldModels = previousConfig?.models || [];
+      const newModels = newConfig.models || [];
+      
+      this.logger.info('REFRESH', 'Config refreshed', {
+        oldModelCount: oldModels.length,
+        newModelCount: newModels.length
+      });
+      
+      // 2. Sync images: download new, revoke removed
+      await this.assetManager.refreshAssets(oldModels, newModels);
+      
+      // 3. Find model IDs that were removed from config
+      const newModelIds = new Set(newModels.map(m => m.id));
+      const removedIds = [];
+      for (const [cachedId, cachedEntry] of this.modelEntityCache) {
+        if (!newModelIds.has(cachedId)) {
+          removedIds.push(cachedId);
+          // Remove entity from DOM
+          if (cachedEntry.entity?.parentNode) {
+            cachedEntry.entity.parentNode.removeChild(cachedEntry.entity);
+          }
+        }
+      }
+      
+      // Clear stale cache entries and revoke model loader's download cache
+      const newModelUrls = new Set(newModels.map(m => m.url));
+      for (const id of removedIds) {
+        const entry = this.modelEntityCache.get(id);
+        // Revoke cached model blob URL from ModelLoader if its URL was removed
+        if (entry?.config?.url && !newModelUrls.has(entry.config.url)) {
+          const cachedBlobUrl = this.modelLoader.loadedModels?.get(entry.config.url);
+          if (cachedBlobUrl) {
+            URL.revokeObjectURL(cachedBlobUrl);
+            this.modelLoader.loadedModels.delete(entry.config.url);
+          }
+        }
+        this.modelEntityCache.delete(id);
+        this.logger.info('REFRESH', 'Removed stale cached model', { modelId: id });
+      }
+      
+      // 4. If current active model was removed, reset state
+      if (this.activeModelId && !newModelIds.has(this.activeModelId)) {
+        this.gestureHandler?.detach();
+        this.currentModel = null;
+        this.activeModelId = null;
+        this.currentModelConfig = null;
+        this.modelIsPlaced = false;
+        this.lastPlacedHitPosition = null;
+        
+        // Hide layer controls
+        const layerBtn = document.getElementById('layer-toggle-btn');
+        if (layerBtn) layerBtn.classList.add('hidden');
+        const layerPopup = document.getElementById('layer-toggles');
+        if (layerPopup) {
+          layerPopup.classList.remove('visible');
+          layerPopup.classList.add('hidden');
+        }
+        
+        // Re-enable reticle for new placement
+        this.arSession.suppressPlacement(300);
+        this.arSession.setReticleEnabled(true);
+        this.arSession.setPlacementEnabled(true);
+        
+        this.logger.info('REFRESH', 'Active model was removed from config - reset to scanning');
+      }
+      
+      // 5. Update model loader's model list
+      this.modelLoader.models = newModels;
+      
+      // 6. Update gallery with new models and refreshed asset manager
+      this.gallery.updateModels(newModels, this.assetManager);
+      
+      this.uiController.showToast(
+        `Synced: ${newModels.length} model${newModels.length !== 1 ? 's' : ''} available`,
+        'success'
+      );
+      
+    } catch (error) {
+      this.logger.error('REFRESH', 'Failed to refresh config', { error: error.message });
+      this.uiController.showToast('Failed to refresh from backend', 'error');
+    } finally {
+      if (refreshBtn) {
+        refreshBtn.classList.remove('refreshing');
+        refreshBtn.disabled = false;
+      }
+    }
+  }
+
+  /**
+   * Auto-load the first model from the gallery (legacy, no longer called on session start)
    */
   autoLoadFirstModel() {
     const currentConfig = getConfig();

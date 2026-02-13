@@ -26,7 +26,7 @@ npm run preview
 ```
 
 ### Testing
-1. Open the app on your mobile device at `https://[your-ip]:3000`
+1. Open the app on your mobile device at `https://161.97.180.217:3000`
 2. Accept the self-signed certificate warning
 3. Allow camera permissions when prompted
 4. Scan the floor to detect a surface

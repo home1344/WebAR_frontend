@@ -30,6 +30,8 @@ export class ARSession {
     this._hitStableStart = 0;              // Timestamp when continuous hits began
     this._hitStableThreshold = 800;        // ms of continuous hits before 'detected'
     this._lastHitActive = false;           // Whether previous frame had a hit
+
+    this._markerVisible = false;
     
     // Placement suppression: prevents accidental placement after UI interactions
     // When a UI button enables placement, we suppress for a short time to avoid
@@ -294,6 +296,12 @@ export class ARSession {
     this.hitTestMarker.object3D.position.copy(this._tmpPos);
     
     this.hitTestMarker.setAttribute('visible', true);
+    if (!this._markerVisible) {
+      this._markerVisible = true;
+      window.dispatchEvent(new CustomEvent('ar-reticle-visibility', {
+        detail: { visible: true }
+      }));
+    }
     
     // Update rotation from hit pose quaternion
     const o = t.orientation;
@@ -306,6 +314,13 @@ export class ARSession {
   hideHitMarker() {
     if (this.hitTestMarker) {
       this.hitTestMarker.setAttribute('visible', false);
+    }
+
+    if (this._markerVisible) {
+      this._markerVisible = false;
+      window.dispatchEvent(new CustomEvent('ar-reticle-visibility', {
+        detail: { visible: false }
+      }));
     }
   }
 
@@ -546,5 +561,9 @@ export class ARSession {
       }
     }
     this.logger.info('AR_SESSION', `Surface state → ${state}`);
+
+    window.dispatchEvent(new CustomEvent('ar-surface-state', {
+      detail: { state }
+    }));
   }
 }

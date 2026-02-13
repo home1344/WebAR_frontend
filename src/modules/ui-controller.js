@@ -141,6 +141,14 @@ export class UIController {
     });
   }
 
+  showSurfaceDetectingInstructions() {
+    this.showInstructions('Move your phone to find surface', {
+      duration: 0,
+      icon: 'scan',
+      state: 'surface_detecting'
+    });
+  }
+
   /**
    * Update instructions for surface detected state
    */
@@ -409,19 +417,28 @@ export class UIController {
    *                                     Falls back to default rendering images if not provided.
    */
   createModelLoadingIndicator(onCancel = null, renderingImages = null) {
-    // Use per-model rendering images or fall back to defaults
-    const images = (Array.isArray(renderingImages) && renderingImages.length === 4)
-      ? renderingImages
-      : ['/rendering/rendering00.png', '/rendering/rendering25.png', '/rendering/rendering50.png', '/rendering/rendering75.png'];
+    // Use per-model rendering images if provided (4 images required)
+    const hasImages = Array.isArray(renderingImages) && renderingImages.length === 4;
     
     const indicator = document.createElement('div');
     indicator.className = 'model-loading-indicator';
     indicator.dataset.currentStage = '0';
+    
+    // Build background layers: use images if available, otherwise solid gradient
+    let bgLayers;
+    if (hasImages) {
+      bgLayers = `
+      <div class="loading-bg loading-bg-active" data-stage="0" style="background-image: url('${renderingImages[0]}')"></div>
+      <div class="loading-bg" data-stage="25" style="background-image: url('${renderingImages[1]}')"></div>
+      <div class="loading-bg" data-stage="50" style="background-image: url('${renderingImages[2]}')"></div>
+      <div class="loading-bg" data-stage="75" style="background-image: url('${renderingImages[3]}')"></div>`;
+    } else {
+      bgLayers = `
+      <div class="loading-bg loading-bg-active" data-stage="0" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)"></div>`;
+    }
+    
     indicator.innerHTML = `
-      <div class="loading-bg loading-bg-active" data-stage="0" style="background-image: url('${images[0]}')"></div>
-      <div class="loading-bg" data-stage="25" style="background-image: url('${images[1]}')"></div>
-      <div class="loading-bg" data-stage="50" style="background-image: url('${images[2]}')"></div>
-      <div class="loading-bg" data-stage="75" style="background-image: url('${images[3]}')"></div>
+      ${bgLayers}
       <button class="cancel-load-btn" type="button">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -552,6 +569,7 @@ export class UIController {
   setControlsEnabled(enabled) {
     const galleryBtn = document.getElementById('gallery-btn');
     const reloadBtn = document.getElementById('reload-btn');
+    const refreshBtn = document.getElementById('refresh-btn');
     const logBtn = document.getElementById('log-btn');
     const closeAppBtn = document.getElementById('close-app-btn');
     const surfaceStatus = this.surfaceStatus;
@@ -565,6 +583,10 @@ export class UIController {
     if (reloadBtn) {
       reloadBtn.disabled = !enabled;
       reloadBtn.classList.toggle('loading-hidden', !enabled);
+    }
+    if (refreshBtn) {
+      refreshBtn.disabled = !enabled;
+      refreshBtn.classList.toggle('loading-hidden', !enabled);
     }
     if (logBtn) {
       logBtn.disabled = !enabled;

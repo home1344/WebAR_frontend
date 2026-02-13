@@ -4,9 +4,10 @@
  */
 
 export class Gallery {
-  constructor(models, onSelectCallback) {
+  constructor(models, onSelectCallback, assetManager = null) {
     this.models = models;
     this.onSelect = onSelectCallback;
+    this.assetManager = assetManager;
     this.enabled = true; // Controls whether gallery selection is allowed
     
     this.galleryModal = document.getElementById('gallery-modal');
@@ -63,7 +64,7 @@ export class Gallery {
     
     if (model.thumbnail) {
       const img = document.createElement('img');
-      img.src = model.thumbnail;
+      img.src = this.assetManager ? this.assetManager.getBlobUrl(model.thumbnail) : model.thumbnail;
       img.alt = model.name;
       img.onerror = () => {
         // Fallback to placeholder if image fails to load
@@ -180,8 +181,9 @@ export class Gallery {
   /**
    * Update models list
    */
-  updateModels(models) {
+  updateModels(models, assetManager = null) {
     this.models = models;
+    if (assetManager) this.assetManager = assetManager;
     this.buildGallery();
   }
 

@@ -8,58 +8,24 @@
  */
 
 // Default rendering images used when a model has no per-model rendering images
-const DEFAULT_RENDERING_IMAGES = [
-  '/rendering/rendering00.png',
-  '/rendering/rendering25.png',
-  '/rendering/rendering50.png',
-  '/rendering/rendering75.png'
-];
+// Empty by default — backend config should always provide per-model rendering images
+const DEFAULT_RENDERING_IMAGES = [];
 
 // Hardcoded fallback config (used when backend API is unreachable)
 const FALLBACK_CONFIG = {
   // Server configuration
   server: {
     // Model server URL - will be updated for production
-    modelBaseUrl: '/models/',
+    modelBaseUrl: '/uploads/models/',
     // Enable CORS
     cors: true,
     // Request timeout in ms
     timeout: 30000
   },
   
-  // Model configurations - URLs must match actual filenames in public/models/
-  models: [
-    {
-      id: 'house0',
-      name: 'House 0',
-      url: '/models/House0.gltf',
-      thumbnail: '/thumbnails/preview0.png',
-      renderingImages: DEFAULT_RENDERING_IMAGES,
-      defaultScale: '1 1 1',
-      targetSizeMeters: 0.5,
-      layers: []
-    },
-    {
-      id: 'house1',
-      name: 'House 1',
-      url: '/models/House1.gltf',
-      thumbnail: '/thumbnails/preview1.png',
-      renderingImages: DEFAULT_RENDERING_IMAGES,
-      defaultScale: '1 1 1',
-      targetSizeMeters: 0.5,
-      layers: []
-    },
-    {
-      id: 'house2',
-      name: 'House 2',
-      url: '/models/House2.gltf',
-      thumbnail: '/thumbnails/preview2.png',
-      renderingImages: DEFAULT_RENDERING_IMAGES,
-      defaultScale: '1 1 1',
-      targetSizeMeters: 0.5,
-      layers: []
-    }
-  ],
+  // Model configurations — always fetched from backend via /api/config
+  // Empty fallback: no models available when backend is unreachable
+  models: [],
   
   // AR Configuration
   ar: {
@@ -135,7 +101,7 @@ function normalizeModels(config) {
   if (config && Array.isArray(config.models)) {
     config.models = config.models.map(model => ({
       ...model,
-      renderingImages: (Array.isArray(model.renderingImages) && model.renderingImages.length === 4)
+      renderingImages: Array.isArray(model.renderingImages)
         ? model.renderingImages
         : DEFAULT_RENDERING_IMAGES
     }));
@@ -157,13 +123,36 @@ export async function loadConfig() {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const apiConfig = await response.json();
-    _configCache = normalizeModels(apiConfig);
+    // Merge with fallback so missing sections have safe defaults
+    _configCache = normalizeModels(mergeConfig(FALLBACK_CONFIG, apiConfig));
     console.log('[CONFIG] Loaded from backend API');
     return _configCache;
   } catch (e) {
     console.warn('[CONFIG] Backend API unavailable, using fallback config:', e.message);
     _configCache = normalizeModels({ ...FALLBACK_CONFIG });
     return _configCache;
+  }
+}
+
+/**
+ * Re-fetch configuration from backend, bypassing cache.
+ * Used by the refresh button to pick up model/image changes.
+ * @returns {Promise<object>} The refreshed config
+ */
+export async function refreshConfig() {
+  try {
+    const response = await fetch('/api/config', {
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const apiConfig = await response.json();
+    const oldCache = _configCache;
+    _configCache = normalizeModels(mergeConfig(FALLBACK_CONFIG, apiConfig));
+    console.log('[CONFIG] Refreshed from backend API');
+    return { config: _configCache, previousConfig: oldCache };
+  } catch (e) {
+    console.warn('[CONFIG] Failed to refresh config:', e.message);
+    throw e;
   }
 }
 
@@ -176,9 +165,19 @@ export function getConfig() {
   return _configCache || normalizeModels({ ...FALLBACK_CONFIG });
 }
 
-// Legacy export: synchronous CONFIG constant for backward compatibility
-// Code that imports CONFIG directly will get the fallback until loadConfig() is called
-export const CONFIG = FALLBACK_CONFIG;
+/**
+ * Shallow-merge backend config over fallback defaults.
+ * Ensures every top-level section (server, ar, ui, gestures, performance)
+ * exists even if the backend omits it.
+ */
+function mergeConfig(fallback, apiResponse) {
+  return {
+    ...fallback,
+    ...apiResponse,
+    // Deep-merge server so individual keys aren't lost
+    server: { ...fallback.server, ...(apiResponse.server || {}) }
+  };
+}
 
 // Export defaults for use by other modules
 export { DEFAULT_RENDERING_IMAGES };
