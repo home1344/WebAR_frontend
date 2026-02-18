@@ -1,5 +1,18 @@
 import { defineConfig } from 'vite';
+import { readFileSync } from 'fs';
 import basicSsl from '@vitejs/plugin-basic-ssl';
+
+// Try to use custom certificates for better security, fallback to basic SSL
+let httpsOptions = true; // Use basicSsl by default
+try {
+  httpsOptions = {
+    key: readFileSync('./certs/dev.key'),
+    cert: readFileSync('./certs/dev.crt')
+  };
+  console.log('🔒 Using custom SSL certificates for development');
+} catch (e) {
+  console.log('🔓 Using basic SSL certificates (run ./generate-certs.sh for better security)');
+}
 
 export default defineConfig({
   plugins: [
@@ -7,25 +20,25 @@ export default defineConfig({
     basicSsl()
   ],
   server: {
-    https: true,
+    https: httpsOptions,
     host: true,
     port: 3000,
     proxy: {
       // Proxy backend requests during development
-      // Backend: https://ardemo.co.za
+      // Backend: https://api.ardemo.co.za
       '/api': {
-        target: 'https://ardemo.co.za',
+        target: 'https://api.ardemo.co.za',
         changeOrigin: true,
         secure: true
       },
       // Static files served by backend (models, images, defaults)
       '/uploads': {
-        target: 'https://ardemo.co.za',
+        target: 'https://api.ardemo.co.za',
         changeOrigin: true,
         secure: true
       },
       '/defaults': {
-        target: 'https://ardemo.co.za',
+        target: 'https://api.ardemo.co.za',
         changeOrigin: true,
         secure: true
       }

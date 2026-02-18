@@ -3,6 +3,11 @@
  * Main entry point - orchestrates the AR experience
  */
 
+// Force HTTPS redirect for WebXR security
+if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost') {
+  window.location.replace(window.location.href.replace('http:', 'https:'));
+}
+
 import { ARSession } from './modules/ar-session.js';
 import { ModelLoader } from './modules/model-loader.js';
 import { UIController } from './modules/ui-controller.js';
