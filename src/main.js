@@ -312,6 +312,14 @@ class WebARApp {
     this.surfaceDetected = false;
     this.setupSurfaceDetectionListener();
     
+    // If no models were loaded from config, disable placement and prompt refresh
+    const currentConfig = getConfig();
+    if (!currentConfig.models || currentConfig.models.length === 0) {
+      this.arSession.setPlacementEnabled(false);
+      this.uiController.showToast('No models available. Tap the refresh button to sync with backend.', 'warning');
+      this.logger.warning('AR_SESSION', 'No models in config - placement disabled until refresh');
+    }
+    
     // No auto-load: first model loads when user taps detected reticle
   }
 
@@ -1029,8 +1037,6 @@ class WebARApp {
   }
 
   async onPlaceModel(position) {
-    this.logger.logModelPlacement(position);
-    
     // Placement is now controlled by ARSession.placementEnabled
     // This function is only called when placement is allowed
     
@@ -1058,6 +1064,9 @@ class WebARApp {
       this.uiController.showToast('Model still loading...', 'info');
       return;
     }
+    
+    // Log placement only when we actually have a model with a mesh
+    this.logger.logModelPlacement(position);
     
     // Get floor offset calculated during model-loaded
     const floorOffset = parseFloat(this.currentModel.dataset.floorOffset) || 0;
@@ -1282,7 +1291,8 @@ class WebARApp {
 
   /**
    * Auto-discover toggleable layers from the loaded glTF model.
-   * Inspects direct children of the scene root for named groups/meshes.
+   * Traverses up to maxDepth levels to find named Group/Mesh nodes.
+   * Skips auto-generated names, lights, cameras, and bones.
    * @param {Element} modelEntity - The A-Frame entity with a loaded glTF model
    * @returns {Array<{name: string, node: string}>} Discovered layers
    */
@@ -1291,29 +1301,55 @@ class WebARApp {
     if (!mesh) return [];
     
     const layers = [];
+    const seenNames = new Set();
+    const maxDepth = 3; // traverse up to 3 levels deep
     
-    // Navigate to meaningful root: if the scene root has only one wrapper child, go deeper
+    // Navigate to meaningful root: unwrap single-child wrappers
     let root = mesh;
-    if (root.children.length === 1 && root.children[0].children && root.children[0].children.length > 0) {
+    while (root.children.length === 1 && root.children[0].children && root.children[0].children.length > 0) {
       root = root.children[0];
     }
     
-    root.children.forEach(child => {
-      // Skip unnamed nodes, lights, cameras
-      if (!child.name || child.name === '') return;
-      if (child instanceof THREE.Light || child instanceof THREE.Camera) return;
+    /**
+     * Recursively collect named, toggleable children.
+     * @param {THREE.Object3D} node - Current node
+     * @param {number} depth - Current depth (0 = root's direct children)
+     */
+    const collectLayers = (node, depth) => {
+      if (depth > maxDepth) return;
       
-      // Format display name: replace underscores/dots/dashes with spaces, title case
-      const displayName = child.name
-        .replace(/[_\.\-]/g, ' ')
-        .replace(/\b\w/g, c => c.toUpperCase())
-        .trim();
-      
-      layers.push({
-        name: displayName,
-        node: child.name
+      node.children.forEach(child => {
+        // Skip lights, cameras, bones, helpers
+        if (child instanceof THREE.Light || child instanceof THREE.Camera) return;
+        if (child.type === 'Bone' || child.type === 'SkinnedMesh') return;
+        
+        const name = child.name || '';
+        
+        // Skip unnamed nodes and auto-generated / purely numeric names
+        if (!name || /^\d+$/.test(name) || /^Object_\d+$/i.test(name) || /^mesh_?\d*$/i.test(name)) {
+          // Still recurse into unnamed wrappers to find named children
+          collectLayers(child, depth + 1);
+          return;
+        }
+        
+        // Avoid duplicate names (same node name at different depths)
+        if (seenNames.has(name)) return;
+        seenNames.add(name);
+        
+        // Format display name: replace underscores/dots/dashes with spaces, title case
+        const displayName = name
+          .replace(/[_\.\-]/g, ' ')
+          .replace(/\b\w/g, c => c.toUpperCase())
+          .trim();
+        
+        layers.push({
+          name: displayName,
+          node: name
+        });
       });
-    });
+    };
+    
+    collectLayers(root, 0);
     
     this.logger.info('LAYERS', 'Auto-discovered model layers', {
       count: layers.length,
@@ -1541,14 +1577,26 @@ class WebARApp {
       // 6. Update gallery with new models and refreshed asset manager
       this.gallery.updateModels(newModels, this.assetManager);
       
+      // 7. If we previously had 0 models and now have some, re-enable placement
+      if (oldModels.length === 0 && newModels.length > 0 && !this.modelIsPlaced) {
+        this.arSession.suppressPlacement(300);
+        this.arSession.setReticleEnabled(true);
+        this.arSession.setPlacementEnabled(true);
+        this.logger.info('REFRESH', 'Models now available - placement re-enabled');
+      }
+      
       this.uiController.showToast(
         `Synced: ${newModels.length} model${newModels.length !== 1 ? 's' : ''} available`,
         'success'
       );
       
     } catch (error) {
-      this.logger.error('REFRESH', 'Failed to refresh config', { error: error.message });
-      this.uiController.showToast('Failed to refresh from backend', 'error');
+      this.logger.error('REFRESH', 'Failed to refresh config', {
+        error: error.message,
+        stack: error.stack,
+        hint: 'Check VITE_API_BASE_URL env var and backend CORS headers'
+      });
+      this.uiController.showToast(`Refresh failed: ${error.message}`, 'error');
     } finally {
       if (refreshBtn) {
         refreshBtn.classList.remove('refreshing');

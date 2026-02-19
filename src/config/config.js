@@ -5,7 +5,14 @@
  * Supports two modes:
  * 1. Backend API mode: fetches config from /api/config at runtime
  * 2. Fallback mode: uses hardcoded defaults when API is unavailable
+ *
+ * In production, set VITE_API_BASE_URL to the backend origin
+ * (e.g. https://api.ardemo.co.za) so API and asset requests reach
+ * the correct server. During development, the Vite proxy handles this.
  */
+
+// Backend origin — empty string in dev (Vite proxy), absolute URL in production
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
 
 // Default rendering images used when a model has no per-model rendering images
 // Empty by default — backend config should always provide per-model rendering images
@@ -15,8 +22,8 @@ const DEFAULT_RENDERING_IMAGES = [];
 const FALLBACK_CONFIG = {
   // Server configuration
   server: {
-    // Model server URL - will be updated for production
-    modelBaseUrl: '/uploads/models/',
+    // Model server URL — prefixed with API_BASE_URL so assets resolve to backend
+    modelBaseUrl: `${API_BASE_URL}/uploads/models/`,
     // Enable CORS
     cors: true,
     // Request timeout in ms
@@ -94,15 +101,27 @@ const FALLBACK_CONFIG = {
 let _configCache = null;
 
 /**
- * Ensure every model in the config has a valid renderingImages array.
- * Falls back to DEFAULT_RENDERING_IMAGES if missing or incomplete.
+ * Prefix a path with API_BASE_URL when it is a server-relative path
+ * (starts with /uploads, /defaults, or /api) and API_BASE_URL is set.
+ * Already-absolute URLs (http/https) are returned as-is.
  */
+function resolveAssetUrl(path) {
+  if (!path || !API_BASE_URL) return path;
+  if (/^https?:\/\//i.test(path)) return path;           // already absolute
+  if (/^\/(uploads|defaults|api)\//i.test(path)) {
+    return `${API_BASE_URL}${path}`;
+  }
+  return path;
+}
+
 function normalizeModels(config) {
   if (config && Array.isArray(config.models)) {
     config.models = config.models.map(model => ({
       ...model,
+      url: resolveAssetUrl(model.url),
+      thumbnail: resolveAssetUrl(model.thumbnail),
       renderingImages: Array.isArray(model.renderingImages)
-        ? model.renderingImages
+        ? model.renderingImages.map(resolveAssetUrl)
         : DEFAULT_RENDERING_IMAGES
     }));
   }
@@ -117,18 +136,24 @@ function normalizeModels(config) {
 export async function loadConfig() {
   if (_configCache) return _configCache;
   
+  const configUrl = `${API_BASE_URL}/api/config`;
   try {
-    const response = await fetch('/api/config', {
+    console.log(`[CONFIG] Fetching config from ${configUrl}`);
+    const response = await fetch(configUrl, {
       signal: AbortSignal.timeout(5000)
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Expected JSON but received ${contentType}`);
+    }
     const apiConfig = await response.json();
     // Merge with fallback so missing sections have safe defaults
     _configCache = normalizeModels(mergeConfig(FALLBACK_CONFIG, apiConfig));
     console.log('[CONFIG] Loaded from backend API');
     return _configCache;
   } catch (e) {
-    console.warn('[CONFIG] Backend API unavailable, using fallback config:', e.message);
+    console.warn(`[CONFIG] Backend API unavailable (${configUrl}), using fallback config:`, e.message);
     _configCache = normalizeModels({ ...FALLBACK_CONFIG });
     return _configCache;
   }
@@ -140,18 +165,24 @@ export async function loadConfig() {
  * @returns {Promise<object>} The refreshed config
  */
 export async function refreshConfig() {
+  const configUrl = `${API_BASE_URL}/api/config`;
   try {
-    const response = await fetch('/api/config', {
+    console.log(`[CONFIG] Refreshing config from ${configUrl}`);
+    const response = await fetch(configUrl, {
       signal: AbortSignal.timeout(5000)
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Expected JSON but received ${contentType}`);
+    }
     const apiConfig = await response.json();
     const oldCache = _configCache;
     _configCache = normalizeModels(mergeConfig(FALLBACK_CONFIG, apiConfig));
     console.log('[CONFIG] Refreshed from backend API');
     return { config: _configCache, previousConfig: oldCache };
   } catch (e) {
-    console.warn('[CONFIG] Failed to refresh config:', e.message);
+    console.warn(`[CONFIG] Failed to refresh config (${configUrl}):`, e.message);
     throw e;
   }
 }
@@ -179,5 +210,5 @@ function mergeConfig(fallback, apiResponse) {
   };
 }
 
-// Export defaults for use by other modules
-export { DEFAULT_RENDERING_IMAGES };
+// Export defaults and helpers for use by other modules
+export { DEFAULT_RENDERING_IMAGES, API_BASE_URL, resolveAssetUrl };
